@@ -1,4 +1,4 @@
-module lunge
+module github.com/wesleyorama2/lunge
 
 go 1.23.5
 
