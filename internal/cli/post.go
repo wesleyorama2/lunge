@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"lunge/internal/http"
-	"lunge/internal/output"
+	"github.com/wesleyorama2/lunge/internal/http"
+	"github.com/wesleyorama2/lunge/internal/output"
 )
 
 var postCmd = &cobra.Command{

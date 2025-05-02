@@ -13,10 +13,10 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"lunge/internal/config"
-	"lunge/internal/http"
-	"lunge/internal/output"
-	"lunge/pkg/jsonpath"
+	"github.com/wesleyorama2/lunge/internal/config"
+	"github.com/wesleyorama2/lunge/internal/http"
+	"github.com/wesleyorama2/lunge/internal/output"
+	"github.com/wesleyorama2/lunge/pkg/jsonpath"
 )
 
 var testCmd = &cobra.Command{

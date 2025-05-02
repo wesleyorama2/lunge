@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"lunge/internal/http"
 	nethttp "net/http"
+
+	"github.com/wesleyorama2/lunge/internal/http"
 )
 
 func TestFormatter_FormatRequest(t *testing.T) {

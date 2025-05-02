@@ -14,7 +14,7 @@ This guide covers the different ways to install Lunge on your system.
 If you have Go installed, you can install Lunge directly using:
 
 ```bash
-go install github.com/yourusername/lunge/cmd/lunge@latest
+go install github.com/wesleyorama2/lunge/cmd/lunge@latest
 ```
 
 This will download, compile, and install the latest version of Lunge to your `$GOPATH/bin` directory.
@@ -24,7 +24,7 @@ This will download, compile, and install the latest version of Lunge to your `$G
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/lunge.git
+git clone https://github.com/wesleyorama2/lunge.git
 cd lunge
 ```
 

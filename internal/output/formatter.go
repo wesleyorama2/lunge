@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	http "lunge/internal/http"
+	http "github.com/wesleyorama2/lunge/internal/http"
 
 	"github.com/fatih/color"
 )

@@ -1,9 +1,10 @@
 package cli
 
 import (
-	"lunge/internal/config"
 	"reflect"
 	"testing"
+
+	"github.com/wesleyorama2/lunge/internal/config"
 )
 
 // TestRequestBodyProcessing tests the processing of request bodies with variable substitution
