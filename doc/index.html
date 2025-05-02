@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lunge Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        h2 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .description {
+            color: #586069;
+            margin-bottom: 16px;
+        }
+        .nav-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .nav-item {
+            margin-bottom: 8px;
+            padding: 8px 16px;
+            border-radius: 3px;
+            background-color: #f6f8fa;
+        }
+        .nav-item:hover {
+            background-color: #eaecef;
+        }
+        footer {
+            margin-top: 32px;
+            font-size: 14px;
+            color: #586069;
+            border-top: 1px solid #eaecef;
+            padding-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Lunge Documentation</h1>
+        <p class="description">
+            A powerful terminal-based HTTP client that combines the simplicity of curl with the power of Postman/Insomnia.
+        </p>
+    </header>
+
+    <main>
+        <h2>Documentation Contents</h2>
+        <ul class="nav-list">
+            <li class="nav-item"><a href="./Installation.md">Installation</a> - How to install Lunge</li>
+            <li class="nav-item"><a href="./Getting-Started.md">Getting Started</a> - Quick start guide</li>
+            <li class="nav-item"><a href="./Configuration.md">Configuration</a> - Configuration file format and options</li>
+            <li class="nav-item"><a href="./Variables.md">Variables</a> - Working with environment variables and extraction</li>
+            <li class="nav-item"><a href="./Testing.md">Testing</a> - Running tests and assertions</li>
+            <li class="nav-item"><a href="./JSON-Schema-Validation.md">JSON Schema Validation</a> - Validating responses against schemas</li>
+            <li class="nav-item"><a href="./Examples.md">Examples</a> - Common usage examples</li>
+        </ul>
+
+        <h2>Overview</h2>
+        <p>
+            Lunge is a terminal-based HTTP client designed for developers who need more power than curl but prefer the simplicity of the command line over GUI tools. Key features include:
+        </p>
+        <ul>
+            <li>Simple, intuitive command-line interface</li>
+            <li>Configuration files for defining requests and environments</li>
+            <li>Request suites for running multiple requests in sequence</li>
+            <li>Variable extraction from responses for use in subsequent requests</li>
+            <li>JSON Schema validation for response validation</li>
+            <li>Comprehensive testing capabilities with assertions</li>
+            <li>Pretty output formatting</li>
+        </ul>
+        <p>
+            Whether you're testing APIs, automating workflows, or just making quick HTTP requests, Lunge provides the tools you need in a fast, efficient command-line package.
+        </p>
+    </main>
+
+    <footer>
+        <p>
+            Lunge is open source software under the MIT license.
+        </p>
+    </footer>
+</body>
+</html>

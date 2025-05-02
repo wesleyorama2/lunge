@@ -1,0 +1,79 @@
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com",
+      "variables": {
+        "initialUserId": "1"
+      }
+    }
+  },
+  "requests": {
+    "getUser": {
+      "url": "/users/{{initialUserId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "extract": {
+        "userId": "$.id",
+        "username": "$.username",
+        "email": "$.email",
+        "city": "$.address.city",
+        "companyName": "$.company.name"
+      }
+    },
+    "getUserPosts": {
+      "url": "/posts",
+      "method": "GET",
+      "queryParams": {
+        "userId": "{{userId}}"
+      },
+      "headers": {
+        "Accept": "application/json"
+      },
+      "extract": {
+        "firstPostId": "$.0.id",
+        "firstPostTitle": "$.0.title"
+      }
+    },
+    "getPostComments": {
+      "url": "/posts/{{firstPostId}}/comments",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "extract": {
+        "firstCommentEmail": "$.0.email"
+      }
+    },
+    "createPost": {
+      "url": "/posts",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      "body": {
+        "title": "Post by {{username}}",
+        "body": "This is a post created by {{username}} ({{email}}) from {{city}}",
+        "userId": "{{userId}}"
+      },
+      "extract": {
+        "newPostId": "$.id"
+      }
+    }
+  },
+  "suites": {
+    "userWorkflow": {
+      "requests": [
+        "getUser",
+        "getUserPosts",
+        "getPostComments",
+        "createPost"
+      ],
+      "variables": {
+        "initialUserId": "1"
+      }
+    }
+  }
+}

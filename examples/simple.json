@@ -1,0 +1,108 @@
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com",
+      "variables": {
+        "userId": "1"
+      }
+    },
+    "prod": {
+      "baseUrl": "https://api.example.com",
+      "variables": {
+        "userId": "1"
+      }
+    }
+  },
+  "requests": {
+    "getUser": {
+      "url": "/users/{{userId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "extract": {
+        "username": "$.username",
+        "email": "$.email"
+      },
+      "validate": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "responseTime": "<500ms",
+        "body": {
+          "path": "$",
+          "exists": true
+        }
+      }
+    },
+    "getPosts": {
+      "url": "/posts",
+      "method": "GET",
+      "queryParams": {
+        "userId": "{{userId}}"
+      },
+      "headers": {
+        "Accept": "application/json"
+      },
+      "validate": {
+        "status": 200
+      }
+    },
+    "createPost": {
+      "url": "/posts",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      "body": {
+        "title": "New Post",
+        "body": "This is a new post created by lunge",
+        "userId": "{{userId}}"
+      },
+      "validate": {
+        "status": 201,
+        "body": {
+          "path": "$.id",
+          "exists": true
+        }
+      }
+    }
+  },
+  "suites": {
+    "userFlow": {
+      "requests": ["getUser", "getPosts"],
+      "variables": {
+        "userId": "1"
+      },
+      "tests": [
+        {
+          "name": "User exists and has valid email",
+          "request": "getUser",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.email", "exists": true },
+            { "path": "$.email", "matches": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" }
+          ]
+        },
+        {
+          "name": "User has at least one post",
+          "request": "getPosts",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$", "isArray": true },
+            { "path": "$", "minLength": 1 }
+          ]
+        },
+        {
+          "name": "Response time is acceptable",
+          "request": "getPosts",
+          "assertions": [
+            { "responseTime": "<500ms" }
+          ]
+        }
+      ]
+    }
+  }
+}

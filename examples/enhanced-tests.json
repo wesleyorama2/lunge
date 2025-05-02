@@ -1,0 +1,197 @@
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com",
+      "variables": {
+        "userId": "1"
+      }
+    }
+  },
+  "requests": {
+    "getUser": {
+      "url": "/users/{{userId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "getPosts": {
+      "url": "/posts",
+      "method": "GET",
+      "queryParams": {
+        "userId": "{{userId}}"
+      },
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "createPost": {
+      "url": "/posts",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      "body": {
+        "title": "Test Post",
+        "body": "This is a test post",
+        "userId": 1
+      }
+    }
+  },
+  "suites": {
+    "basicTests": {
+      "requests": ["getUser", "getPosts", "createPost"],
+      "tests": [
+        {
+          "name": "User API Test",
+          "request": "getUser",
+          "assertions": [
+            {
+              "status": 200
+            },
+            {
+              "responseTime": "<1000"
+            },
+            {
+              "header": "Content-Type",
+              "contains": "application/json"
+            },
+            {
+              "path": "$.name",
+              "exists": true
+            },
+            {
+              "path": "$.email",
+              "matches": ".*@.*\\..*"
+            },
+            {
+              "path": "$.address.city",
+              "equals": "Gwenborough"
+            }
+          ]
+        },
+        {
+          "name": "Posts API Test",
+          "request": "getPosts",
+          "assertions": [
+            {
+              "status": 200
+            },
+            {
+              "responseTime": "<1000"
+            },
+            {
+              "path": "$",
+              "isArray": true
+            },
+            {
+              "path": "$",
+              "minLength": 5
+            },
+            {
+              "path": "$[0].userId",
+              "equals": "1"
+            }
+          ]
+        },
+        {
+          "name": "Create Post Test",
+          "request": "createPost",
+          "assertions": [
+            {
+              "status": 201
+            },
+            {
+              "responseTime": "<1000"
+            },
+            {
+              "header": "Content-Type",
+              "contains": "application/json"
+            },
+            {
+              "path": "$.id",
+              "exists": true
+            },
+            {
+              "path": "$.title",
+              "equals": "Test Post"
+            }
+          ]
+        }
+      ]
+    },
+    "advancedTests": {
+      "requests": ["getUser"],
+      "tests": [
+        {
+          "name": "Response Time Tests",
+          "request": "getUser",
+          "assertions": [
+            {
+              "responseTime": "<500"
+            },
+            {
+              "responseTime": ">10"
+            },
+            {
+              "status": 200
+            }
+          ]
+        },
+        {
+          "name": "Header Tests",
+          "request": "getUser",
+          "assertions": [
+            {
+              "header": "Content-Type",
+              "exists": true
+            },
+            {
+              "header": "Content-Type",
+              "equals": "application/json; charset=utf-8"
+            },
+            {
+              "header": "Content-Type",
+              "contains": "application/json"
+            },
+            {
+              "header": "Content-Type",
+              "matches": "application/.*"
+            },
+            {
+              "header": "Non-Existent-Header",
+              "exists": false
+            }
+          ]
+        },
+        {
+          "name": "JSONPath Tests",
+          "request": "getUser",
+          "assertions": [
+            {
+              "path": "$.name",
+              "exists": true
+            },
+            {
+              "path": "$.email",
+              "matches": ".*@.*\\..*"
+            },
+            {
+              "path": "$.address.city",
+              "equals": "Gwenborough"
+            },
+            {
+              "path": "$.address.zipcode",
+              "contains": "-"
+            },
+            {
+              "path": "$.non.existent.path",
+              "exists": false
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
