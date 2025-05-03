@@ -41,6 +41,12 @@ lunge post https://api.example.com/users -H "Content-Type: application/json" -d 
 # POST with JSON body from a separate flag
 lunge post https://api.example.com/users -j '{"name": "John"}'
 
+# PUT to update a resource
+lunge put https://api.example.com/users/123 -j '{"name": "Updated Name", "email": "updated@example.com"}'
+
+# DELETE a resource
+lunge delete https://api.example.com/users/123
+
 # Enable verbose output
 lunge get https://api.example.com/users -v
 
@@ -129,4 +135,6 @@ Comprehensive documentation is available in the `doc/` directory:
 
 ## License
 
-MIT
+[BSD 3-Clause License](./LICENSE)
+
+Copyright (c) 2025, Wesley Brown. All rights reserved.

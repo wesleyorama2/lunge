@@ -1,0 +1,71 @@
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com",
+      "variables": {
+        "resourceId": "1"
+      }
+    }
+  },
+  "requests": {
+    "getResource": {
+      "url": "/posts/{{resourceId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "updateResource": {
+      "url": "/posts/{{resourceId}}",
+      "method": "PUT",
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      "body": {
+        "id": 1,
+        "title": "Updated Title",
+        "body": "This post has been updated via configuration",
+        "userId": 1
+      }
+    },
+    "verifyUpdate": {
+      "url": "/posts/{{resourceId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    }
+  },
+  "suites": {
+    "updateFlow": {
+      "requests": ["getResource", "updateResource", "verifyUpdate"],
+      "tests": [
+        {
+          "name": "Resource Exists",
+          "request": "getResource",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.id", "exists": true }
+          ]
+        },
+        {
+          "name": "Resource Update",
+          "request": "updateResource",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.title", "equals": "Updated Title" }
+          ]
+        },
+        {
+          "name": "Verify Update",
+          "request": "verifyUpdate",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.title", "exists": true }
+          ]
+        }
+      ]
+    }
+  }
+}

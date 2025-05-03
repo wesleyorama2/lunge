@@ -1,3 +1,8 @@
+// Copyright (c) 2025, Wesley Brown
+// All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package cli
 
 import (
@@ -45,6 +50,8 @@ func init() {
 	// Add subcommands to root command
 	RootCmd.AddCommand(getCmd)
 	RootCmd.AddCommand(postCmd)
+	RootCmd.AddCommand(putCmd)
+	RootCmd.AddCommand(deleteCmd)
 	RootCmd.AddCommand(runCmd)
 	RootCmd.AddCommand(testCmd)
 }

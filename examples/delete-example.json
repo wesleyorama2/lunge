@@ -1,0 +1,63 @@
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com",
+      "variables": {
+        "resourceId": "1"
+      }
+    }
+  },
+  "requests": {
+    "getResource": {
+      "url": "/posts/{{resourceId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "deleteResource": {
+      "url": "/posts/{{resourceId}}",
+      "method": "DELETE",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "verifyDeletion": {
+      "url": "/posts/{{resourceId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    }
+  },
+  "suites": {
+    "deletionFlow": {
+      "requests": ["getResource", "deleteResource", "verifyDeletion"],
+      "tests": [
+        {
+          "name": "Resource Exists",
+          "request": "getResource",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.id", "exists": true }
+          ]
+        },
+        {
+          "name": "Resource Deletion",
+          "request": "deleteResource",
+          "assertions": [
+            { "status": 200 }
+          ]
+        },
+        {
+          "name": "Resource No Longer Exists",
+          "request": "verifyDeletion",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$", "exists": true }
+          ]
+        }
+      ]
+    }
+  }
+}

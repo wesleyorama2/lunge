@@ -22,6 +22,26 @@ To make a POST request with a JSON body:
 lunge post https://api.example.com/users --body '{"name": "John Doe", "email": "john@example.com"}'
 ```
 
+### Making a PUT Request
+
+To update a resource, use the `put` command with a JSON body:
+
+```bash
+lunge put https://api.example.com/users/123 --json '{"name": "Updated Name", "email": "updated@example.com"}'
+```
+
+This will send a PUT request with the specified JSON body to update the resource.
+
+### Making a DELETE Request
+
+To delete a resource, use the `delete` command:
+
+```bash
+lunge delete https://api.example.com/users/123
+```
+
+This will send a DELETE request to the specified URL and display the response.
+
 ### Adding Headers
 
 You can add headers to your requests:
