@@ -90,7 +90,10 @@ var runCmd = &cobra.Command{
 			}
 
 			// Execute single request
-			executeRequest(cfg, request, env, envVars, client, formatter, timeout, verbose)
+			if err := executeRequest(cfg, request, env, envVars, client, formatter, timeout, verbose); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
 		} else if suite != "" {
 			// Validate suite
 			if err := config.ValidateSuite(cfg, suite); err != nil {
@@ -99,15 +102,28 @@ var runCmd = &cobra.Command{
 			}
 
 			// Execute suite
-			executeSuite(cfg, suite, env, envVars, client, formatter, timeout, verbose)
+			if err := executeSuite(cfg, suite, env, envVars, client, formatter, timeout, verbose); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
 		}
 	},
 }
 
 // executeRequest executes a single request
-func executeRequest(cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool) {
+func executeRequest(cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool) error {
+	return executeRequestWithContext(context.Background(), cfg, requestName, env, envVars, client, formatter, timeout, verbose, true)
+}
+
+// executeRequestWithContext executes a single request with the given context and output options
+// This function is more testable because it accepts a context, returns errors instead of exiting,
+// and allows disabling output
+func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool, printOutput bool) error {
 	// Get request
-	reqConfig := cfg.Requests[requestName]
+	reqConfig, ok := cfg.Requests[requestName]
+	if !ok {
+		return fmt.Errorf("request %s not found", requestName)
+	}
 
 	// Process URL with environment variables
 	url := config.ProcessEnvironment(reqConfig.URL, envVars)
@@ -172,12 +188,17 @@ func executeRequest(cfg *config.Config, requestName string, env config.Environme
 		}
 	}
 
-	// Print request
-	fmt.Print(formatter.FormatRequest(req, baseURL))
+	// Print request if enabled
+	if printOutput {
+		fmt.Print(formatter.FormatRequest(req, baseURL))
+	}
 
-	// Execute request
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	// Create a timeout context if one wasn't provided
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 
 	// Update client with baseURL
 	client = http.NewClient(
@@ -187,30 +208,40 @@ func executeRequest(cfg *config.Config, requestName string, env config.Environme
 
 	resp, err := client.Do(ctx, req)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		if printOutput {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		return err
 	}
 
-	// Print response
-	fmt.Print(formatter.FormatResponse(resp))
+	// Print response if enabled
+	if printOutput {
+		fmt.Print(formatter.FormatResponse(resp))
+	}
 
 	// Extract variables
 	if reqConfig.Extract != nil && len(reqConfig.Extract) > 0 {
 		// Get response body as string
 		body, err := resp.GetBodyAsString()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading response body for variable extraction: %v\n", err)
+			if printOutput {
+				fmt.Fprintf(os.Stderr, "Error reading response body for variable extraction: %v\n", err)
+			}
+			// Continue execution, don't return error for extraction issues
 		} else {
 			// Extract variables
 			extracted, err := jsonpath.ExtractMultiple(body, reqConfig.Extract)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Variable extraction partial or failed: %v\n", err)
+				if printOutput {
+					fmt.Fprintf(os.Stderr, "Warning: Variable extraction partial or failed: %v\n", err)
+				}
+				// Continue execution, don't return error for extraction issues
 			}
 
 			// Add extracted variables to environment
 			for name, value := range extracted {
 				envVars[name] = value
-				if verbose {
+				if verbose && printOutput {
 					fmt.Printf("Extracted variable %s = %s\n", name, value)
 				}
 			}
@@ -222,27 +253,38 @@ func executeRequest(cfg *config.Config, requestName string, env config.Environme
 		// Get response body as string
 		body, err := resp.GetBodyAsString()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading response body for schema validation: %v\n", err)
+			if printOutput {
+				fmt.Fprintf(os.Stderr, "Error reading response body for schema validation: %v\n", err)
+			}
+			// Continue execution, don't return error for validation issues
 		} else {
 			// Convert the validate map to a JSON schema string
 			schemaBytes, err := json.Marshal(reqConfig.Validate)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error marshaling schema for validation: %v\n", err)
+				if printOutput {
+					fmt.Fprintf(os.Stderr, "Error marshaling schema for validation: %v\n", err)
+				}
+				// Continue execution, don't return error for validation issues
 			} else {
 				// Validate the response body against the schema
 				valid, validationErrors := jsonschema.ValidateWithErrors(body, string(schemaBytes))
 				if !valid {
-					fmt.Fprintf(os.Stderr, "%s Schema validation failed: %v\n", output.ErrorIcon(false), validationErrors)
-				} else if verbose {
+					if printOutput {
+						fmt.Fprintf(os.Stderr, "%s Schema validation failed: %v\n", output.ErrorIcon(false), validationErrors)
+					}
+					// Continue execution, don't return error for validation issues
+				} else if verbose && printOutput {
 					fmt.Printf("%s Schema validation passed\n", output.SuccessIcon(false))
 				}
 			}
 		}
 	}
+
+	return nil
 }
 
 // executeSuite executes a suite of requests
-func executeSuite(cfg *config.Config, suiteName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool) {
+func executeSuite(cfg *config.Config, suiteName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool) error {
 	// Get suite
 	suite := cfg.Suites[suiteName]
 
@@ -256,8 +298,13 @@ func executeSuite(cfg *config.Config, suiteName string, env config.Environment, 
 	// Execute requests in order
 	for _, requestName := range suite.Requests {
 		fmt.Printf("\n=== Executing request: %s ===\n\n", requestName)
-		executeRequest(cfg, requestName, env, envVars, client, formatter, timeout, verbose)
+		err := executeRequest(cfg, requestName, env, envVars, client, formatter, timeout, verbose)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 // isAbsoluteURL checks if a URL is absolute (has a scheme and host)

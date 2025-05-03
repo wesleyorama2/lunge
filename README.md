@@ -16,7 +16,7 @@ Lunge is a powerful yet simple terminal-based HTTP client written in Go that com
 
 ```bash
 # Install from source
-go install github.com/wesleyorama2/lunge/cmd/lunge@latest
+go install github.com/wesleyorama2/lunge/cmd/lunge
 
 # Or clone the repository and build
 git clone https://github.com/wesleyorama2/lunge.git

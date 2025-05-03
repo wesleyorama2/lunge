@@ -34,6 +34,9 @@ func Validate(jsonStr, schemaStr string) (bool, error) {
 	// Parse the schema
 	compiler := jsonschema.NewCompiler()
 
+	// Register common formats
+	registerFormats(compiler)
+
 	// Add the schema to the compiler
 	if err := compiler.AddResource("schema.json", strings.NewReader(schemaStr)); err != nil {
 		return false, fmt.Errorf("invalid schema: %w", err)
@@ -68,6 +71,9 @@ func Validate(jsonStr, schemaStr string) (bool, error) {
 func ValidateWithErrors(jsonStr, schemaStr string) (bool, ValidationErrors) {
 	// Parse the schema
 	compiler := jsonschema.NewCompiler()
+
+	// Register common formats
+	registerFormats(compiler)
 
 	// Add the schema to the compiler
 	if err := compiler.AddResource("schema.json", strings.NewReader(schemaStr)); err != nil {
@@ -117,4 +123,48 @@ func extractValidationErrors(err *jsonschema.ValidationError) ValidationErrors {
 	}
 
 	return errors
+}
+
+// ValidateWithSchema validates a JSON string against a JSON Schema loaded from a URL or file
+// Returns true if the JSON is valid, false otherwise
+// Also returns a list of validation errors if the JSON is invalid
+func ValidateWithSchema(jsonStr, schemaURL string) (bool, ValidationErrors) {
+	// Parse the schema
+	compiler := jsonschema.NewCompiler()
+
+	// Register common formats
+	registerFormats(compiler)
+
+	// Compile the schema from URL
+	schema, err := compiler.Compile(schemaURL)
+	if err != nil {
+		return false, ValidationErrors{fmt.Errorf("invalid schema: %w", err)}
+	}
+
+	// Parse the JSON
+	var jsonData interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &jsonData); err != nil {
+		return false, ValidationErrors{fmt.Errorf("invalid JSON: %w", err)}
+	}
+
+	// Validate the JSON against the schema
+	err = schema.Validate(jsonData)
+	if err != nil {
+		// JSON is invalid according to the schema
+		if validationErr, ok := err.(*jsonschema.ValidationError); ok {
+			// Extract all validation errors
+			errors := extractValidationErrors(validationErr)
+			return false, errors
+		}
+		return false, ValidationErrors{err}
+	}
+
+	// JSON is valid
+	return true, nil
+}
+
+// registerFormats registers additional formats for validation
+func registerFormats(compiler *jsonschema.Compiler) {
+	// The jsonschema library already has built-in support for common formats
+	// This function is a placeholder for adding custom formats if needed in the future
 }

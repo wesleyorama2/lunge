@@ -10,9 +10,10 @@ import (
 
 // Config represents the top-level configuration
 type Config struct {
-	Environments map[string]Environment `json:"environments"`
-	Requests     map[string]Request     `json:"requests"`
-	Suites       map[string]Suite       `json:"suites"`
+	Environments map[string]Environment     `json:"environments"`
+	Requests     map[string]Request         `json:"requests"`
+	Suites       map[string]Suite           `json:"suites"`
+	Schemas      map[string]json.RawMessage `json:"schemas,omitempty"`
 }
 
 // Environment represents an environment configuration

@@ -25,9 +25,18 @@ special emphasis on testing capabilities and response validation.`,
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
+func Execute() error {
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	return nil
+}
+
+// ExecuteWithExit is the same as Execute but exits the process on error.
+// This is used by the main function to maintain backward compatibility.
+func ExecuteWithExit() {
+	if err := Execute(); err != nil {
 		os.Exit(1)
 	}
 }

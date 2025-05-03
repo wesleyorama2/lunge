@@ -17,6 +17,7 @@ import (
 	"github.com/wesleyorama2/lunge/internal/http"
 	"github.com/wesleyorama2/lunge/internal/output"
 	"github.com/wesleyorama2/lunge/pkg/jsonpath"
+	"github.com/wesleyorama2/lunge/pkg/jsonschema"
 )
 
 var testCmd = &cobra.Command{
@@ -186,7 +187,15 @@ type TestResults struct {
 
 // runTest runs a single test
 func runTest(index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, noColor bool) TestResults {
-	fmt.Printf("TEST %d: %s\n", index, test.Name)
+	return runTestWithContext(context.Background(), index, test, cfg, env, envVars, client, formatter, timeout, noColor, true)
+}
+
+// runTestWithContext runs a single test with the given context and output options
+// This function is more testable because it accepts a context and allows disabling output
+func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, noColor bool, printOutput bool) TestResults {
+	if printOutput {
+		fmt.Printf("TEST %d: %s\n", index, test.Name)
+	}
 
 	// Get request
 	reqConfig := cfg.Requests[test.Request]
@@ -231,12 +240,17 @@ func runTest(index int, test config.Test, cfg *config.Config, env config.Environ
 		req.WithBody(reqConfig.Body)
 	}
 
-	// Print request
-	fmt.Print("  " + strings.Replace(formatter.FormatRequest(req, baseURL), "\n", "\n  ", -1))
+	// Print request if enabled
+	if printOutput {
+		fmt.Print("  " + strings.Replace(formatter.FormatRequest(req, baseURL), "\n", "\n  ", -1))
+	}
 
-	// Execute request
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	// Create a timeout context if one wasn't provided
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 
 	// Update client with baseURL
 	client = http.NewClient(
@@ -251,8 +265,10 @@ func runTest(index int, test config.Test, cfg *config.Config, env config.Environ
 		return TestResults{passed: false}
 	}
 
-	// Print response
-	fmt.Print("  " + strings.Replace(formatter.FormatResponse(resp), "\n", "\n  ", -1))
+	// Print response if enabled
+	if printOutput {
+		fmt.Print("  " + strings.Replace(formatter.FormatResponse(resp), "\n", "\n  ", -1))
+	}
 
 	// Extract variables
 	if reqConfig.Extract != nil {
@@ -275,30 +291,36 @@ func runTest(index int, test config.Test, cfg *config.Config, env config.Environ
 	}
 
 	for _, assertion := range test.Assertions {
-		passed, message := runAssertion(assertion, resp, responseBody, startTime)
+		passed, message := runAssertion(assertion, resp, responseBody, startTime, cfg)
 
 		if passed {
 			results.passedAssertions++
-			fmt.Printf("  %s ASSERTION PASSED: %s\n", output.SuccessIcon(noColor), message)
+			if printOutput {
+				fmt.Printf("  %s ASSERTION PASSED: %s\n", output.SuccessIcon(noColor), message)
+			}
 		} else {
 			results.failedAssertions++
 			results.passed = false
-			fmt.Printf("  %s ASSERTION FAILED: %s\n", output.ErrorIcon(noColor), message)
+			if printOutput {
+				fmt.Printf("  %s ASSERTION FAILED: %s\n", output.ErrorIcon(noColor), message)
+			}
 		}
 	}
 
-	// Print test result
-	if results.passed {
-		fmt.Printf("\n  %s TEST PASSED (%dms)\n\n", output.SuccessIcon(noColor), resp.GetResponseTimeMillis())
-	} else {
-		fmt.Printf("\n  %s TEST FAILED (%dms)\n\n", output.ErrorIcon(noColor), resp.GetResponseTimeMillis())
+	// Print test result if enabled
+	if printOutput {
+		if results.passed {
+			fmt.Printf("\n  %s TEST PASSED (%dms)\n\n", output.SuccessIcon(noColor), resp.GetResponseTimeMillis())
+		} else {
+			fmt.Printf("\n  %s TEST FAILED (%dms)\n\n", output.ErrorIcon(noColor), resp.GetResponseTimeMillis())
+		}
 	}
 
 	return results
 }
 
 // runAssertion runs a single assertion
-func runAssertion(assertion map[string]interface{}, resp *http.Response, responseBody interface{}, startTime time.Time) (bool, string) {
+func runAssertion(assertion map[string]interface{}, resp *http.Response, responseBody interface{}, startTime time.Time, cfg *config.Config) (bool, string) {
 	// Check status code assertion
 	if status, ok := assertion["status"]; ok {
 		statusInt, _ := strconv.Atoi(fmt.Sprintf("%v", status))
@@ -537,8 +559,45 @@ func runAssertion(assertion map[string]interface{}, resp *http.Response, respons
 		}
 	}
 
+	// Check schema assertion
+	if schema, ok := assertion["schema"]; ok {
+		schemaName := fmt.Sprintf("%v", schema)
+		bodyStr, _ := resp.GetBodyAsString()
+
+		// Get the schema from the configuration
+		schemaStr, err := getSchemaFromConfig(schemaName, cfg)
+		if err != nil {
+			return false, fmt.Sprintf("Schema validation failed: %v", err)
+		}
+
+		// Validate the response against the schema
+		valid, errors := jsonschema.ValidateWithErrors(bodyStr, schemaStr)
+		if valid {
+			return true, fmt.Sprintf("Response body validates against schema %s", schemaName)
+		} else {
+			return false, fmt.Sprintf("Schema validation failed for %s: %v", schemaName, errors)
+		}
+	}
+
 	// Default case
 	return false, "Unknown assertion"
+}
+
+// getSchemaFromConfig retrieves a schema from the configuration by name
+func getSchemaFromConfig(schemaName string, cfg *config.Config) (string, error) {
+	// Check if schemas section exists
+	if cfg.Schemas == nil {
+		return "", fmt.Errorf("no schemas defined in configuration")
+	}
+
+	// Check if the schema exists
+	schemaJSON, ok := cfg.Schemas[schemaName]
+	if !ok {
+		return "", fmt.Errorf("schema %s not found in configuration", schemaName)
+	}
+
+	// Return the schema as a string
+	return string(schemaJSON), nil
 }
 
 func init() {

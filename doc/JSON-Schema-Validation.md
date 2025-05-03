@@ -1,6 +1,6 @@
 # JSON Schema Validation
 
-Lunge supports validating API responses against JSON Schema definitions. This provides a powerful way to ensure that responses match expected structures and data types.
+Lunge supports validating API responses against JSON Schema definitions. This provides a powerful way to ensure that responses match expected structures and data types. The enhanced validation framework now supports more schema features and provides detailed error reporting.
 
 ## What is JSON Schema?
 
@@ -198,7 +198,82 @@ You can also reference external schema files:
 }
 ```
 
+## Enhanced Schema Validation Features
+
+The enhanced validation framework includes the following improvements:
+
+### Schema Composition
+
+You can compose schemas using logical operators:
+
+```json
+{
+  "allOf": [
+    { "$ref": "#/schemas/personSchema" },
+    { "$ref": "#/schemas/employeeSchema" }
+  ]
+}
+```
+
+### Detailed Error Reporting
+
+The enhanced validation framework provides more detailed error messages that help you identify validation issues:
+
+```
+✗ ASSERTION FAILED: Schema validation failed for userSchema:
+  - validation error at $.email: string doesn't match format "email"
+  - validation error at $.address: missing properties: 'city'
+```
+
+### Example Schema Validation Test
+
+Here's a complete example of schema validation using the enhanced framework:
+
+```json
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com"
+    }
+  },
+  "requests": {
+    "getUser": {
+      "url": "/users/1",
+      "method": "GET"
+    }
+  },
+  "schemas": {
+    "userSchema": {
+      "type": "object",
+      "required": ["id", "name", "email"],
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      }
+    }
+  },
+  "suites": {
+    "schemaValidationSuite": {
+      "requests": ["getUser"],
+      "tests": [
+        {
+          "name": "User API Schema Validation",
+          "request": "getUser",
+          "assertions": [
+            { "status": 200 },
+            { "schema": "userSchema" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
 ## Next Steps
 
 - [Examples](./Examples.md) - See examples of schema validation in action
 - [Testing](./Testing.md) - Learn more about testing and assertions
+- Create reusable schemas for common response patterns
+- Add schema validation to all your API tests
