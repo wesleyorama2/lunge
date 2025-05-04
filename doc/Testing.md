@@ -53,7 +53,23 @@ lunge test -c config.json -e dev -s apiTests
 
 # Run a specific test
 lunge test -c config.json -e dev -s apiTests -t "User API Test"
+
+# Run tests with different output formats
+lunge test -c config.json -e dev -s apiTests --format json
+lunge test -c config.json -e dev -s apiTests --format yaml
+lunge test -c config.json -e dev -s apiTests --format junit
 ```
+
+### Output Formats
+
+Lunge supports multiple output formats for test results:
+
+- **text** (default): Human-readable formatted output
+- **json**: Structured JSON output for programmatic processing
+- **yaml**: YAML formatted output for configuration-like readability
+- **junit**: XML output compatible with CI/CD systems for test reporting
+
+The JUnit XML format is particularly useful for CI/CD integration, as it provides test results in a format that can be consumed by most CI/CD systems. It correctly represents the number of tests in a test suite, making it easy to track test results over time.
 
 ## Assertion Types
 

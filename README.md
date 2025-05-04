@@ -5,7 +5,9 @@ Lunge is a powerful yet simple terminal-based HTTP client written in Go that com
 ## Features
 
 - Command-line simplicity with powerful request customization
+- Multiple output formats (Text, JSON, YAML, JUnit XML)
 - Pretty request/response formatting in the terminal
+- Detailed performance metrics (DNS, TCP, TLS, TTFB, etc.)
 - JSON configuration for request suites
 - Environment variables and variable substitution
 - Response validation (status, headers, body, schema)
@@ -52,6 +54,11 @@ lunge get https://api.example.com/users -v
 
 # Set request timeout
 lunge get https://api.example.com/users -t 10s
+
+# Output in different formats
+lunge get https://api.example.com/users --format json
+lunge get https://api.example.com/users --format yaml
+lunge get https://api.example.com/users --format junit
 ```
 
 ### Using Configuration Files

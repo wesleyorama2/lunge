@@ -1,0 +1,49 @@
+{
+  "environments": {
+    "dev": {
+      "baseUrl": "https://jsonplaceholder.typicode.com",
+      "variables": {
+        "postId": "1"
+      }
+    }
+  },
+  "requests": {
+    "getPost": {
+      "url": "/posts/{{postId}}",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "getComments": {
+      "url": "/posts/{{postId}}/comments",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      }
+    }
+  },
+  "suites": {
+    "postSuite": {
+      "requests": ["getPost", "getComments"],
+      "tests": [
+        {
+          "name": "Post exists",
+          "request": "getPost",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.id", "exists": true }
+          ]
+        },
+        {
+          "name": "Comments exist",
+          "request": "getComments",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$", "isArray": true }
+          ]
+        }
+      ]
+    }
+  }
+}

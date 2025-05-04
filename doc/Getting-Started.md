@@ -50,17 +50,59 @@ You can add headers to your requests:
 lunge get https://api.example.com/users --header "Authorization: Bearer token123" --header "Accept: application/json"
 ```
 
-### Formatting Output
+### Output Formats
 
-By default, Lunge formats the output for readability. You can control this with flags:
+Lunge supports multiple output formats to suit different needs:
 
 ```bash
-# Pretty-print JSON response
-lunge get https://api.example.com/users --pretty
+# Default text format (human-readable)
+lunge get https://api.example.com/users
 
-# Raw output (no formatting)
-lunge get https://api.example.com/users --raw
+# JSON format (for programmatic processing)
+lunge get https://api.example.com/users --format json
+
+# YAML format (for configuration-like readability)
+lunge get https://api.example.com/users --format yaml
+
+# JUnit XML format (for CI/CD integration)
+lunge get https://api.example.com/users --format junit
 ```
+
+The `--format` flag works with all commands (get, post, put, delete, run, test) and supports the following values:
+- `text` (default): Human-readable formatted output
+- `json`: Structured JSON output
+- `yaml`: YAML formatted output
+- `junit`: XML output compatible with CI/CD systems
+
+You can also control the verbosity and color of the output:
+
+```bash
+# Enable verbose output
+lunge get https://api.example.com/users -v
+
+# Disable colored output
+lunge get https://api.example.com/users --no-color
+```
+
+### Performance Metrics
+
+Lunge provides detailed performance metrics for HTTP requests. When using the verbose flag (`-v`), you'll see a breakdown of timing information:
+
+```bash
+# Show detailed timing metrics
+lunge get https://api.example.com/users -v
+```
+
+The timing metrics include:
+
+- **DNS Lookup**: Time taken to resolve the domain name to an IP address
+- **TCP Connection**: Time taken to establish a TCP connection
+- **TLS Handshake**: Time taken to complete the TLS handshake (for HTTPS)
+- **Time to First Byte (TTFB)**: Time from sending the request to receiving the first byte of the response
+- **Content Transfer**: Time taken to download the response body
+- **Total**: Overall time from request start to completion
+
+These metrics are also included in the structured output formats (JSON, YAML, JUnit XML), making it easy to analyze performance data programmatically.
 
 ## Using Configuration Files
 

@@ -134,6 +134,21 @@ Run this suite:
 lunge run -c config.json -e dev -s postFlow
 ```
 
+### Using Different Output Formats
+
+Lunge supports multiple output formats for both run and test commands:
+
+```bash
+# Run with JSON output format
+lunge run -c config.json -e dev -s postFlow --format json
+
+# Run with YAML output format
+lunge run -c config.json -e dev -s postFlow --format yaml
+
+# Run with JUnit XML output format (useful for CI/CD integration)
+lunge run -c config.json -e dev -s postFlow --format junit
+```
+
 ## Testing Example
 
 ```json
@@ -201,6 +216,11 @@ Run these tests:
 
 ```bash
 lunge test -c config.json -e dev -s apiTests
+
+# Run tests with different output formats
+lunge test -c config.json -e dev -s apiTests --format json
+lunge test -c config.json -e dev -s apiTests --format yaml
+lunge test -c config.json -e dev -s apiTests --format junit
 ```
 
 ## JSON Schema Validation Example
@@ -270,6 +290,11 @@ Run schema validation:
 
 ```bash
 lunge test -c config.json -e dev -s schemaTests
+
+# Run schema validation with different output formats
+lunge test -c config.json -e dev -s schemaTests --format json
+lunge test -c config.json -e dev -s schemaTests --format yaml
+lunge test -c config.json -e dev -s schemaTests --format junit
 ```
 
 ## Authentication Examples
@@ -448,6 +473,11 @@ Run this workflow:
 
 ```bash
 lunge test -c config.json -e dev -s projectWorkflow
+
+# Run workflow with different output formats
+lunge test -c config.json -e dev -s projectWorkflow --format json
+lunge test -c config.json -e dev -s projectWorkflow --format yaml
+lunge test -c config.json -e dev -s projectWorkflow --format junit
 ```
 
 These examples demonstrate the flexibility and power of Lunge for API testing and automation. You can adapt them to your specific needs and build upon them to create more complex workflows.

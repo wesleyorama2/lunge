@@ -2,7 +2,9 @@ package http
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 )
 
@@ -55,7 +57,7 @@ func WithHeader(key, value string) ClientOption {
 	}
 }
 
-// Do executes an HTTP request and returns the response
+// Do executes an HTTP request and returns the response with detailed timing information
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	// Build the HTTP request
 	httpReq, err := req.Build(c.baseURL)
@@ -68,11 +70,62 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		httpReq.Header.Set(key, value)
 	}
 
-	// Add context
-	httpReq = httpReq.WithContext(ctx)
+	// Initialize timing info
+	timing := TimingInfo{
+		StartTime: time.Now(),
+	}
 
-	// Record start time for response time calculation
-	startTime := time.Now()
+	// Create a trace to capture detailed timing information
+	var dnsStart, connectStart, tlsHandshakeStart time.Time
+	var dnsDone, connectDone, tlsHandshakeDone bool
+	var firstByteTime time.Time
+
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			dnsStart = time.Now()
+		},
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			timing.DNSLookupTime = time.Since(dnsStart)
+			dnsDone = true
+		},
+		ConnectStart: func(network, addr string) {
+			if dnsDone {
+				connectStart = time.Now()
+			}
+		},
+		ConnectDone: func(network, addr string, err error) {
+			if err == nil {
+				timing.TCPConnectTime = time.Since(connectStart)
+				connectDone = true
+			}
+		},
+		TLSHandshakeStart: func() {
+			if connectDone {
+				tlsHandshakeStart = time.Now()
+			}
+		},
+		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+			if err == nil {
+				timing.TLSHandshakeTime = time.Since(tlsHandshakeStart)
+				tlsHandshakeDone = true
+			}
+		},
+		GotFirstResponseByte: func() {
+			firstByteTime = time.Now()
+			if tlsHandshakeDone {
+				timing.TimeToFirstByte = firstByteTime.Sub(tlsHandshakeStart.Add(timing.TLSHandshakeTime))
+			} else if connectDone {
+				timing.TimeToFirstByte = firstByteTime.Sub(connectStart.Add(timing.TCPConnectTime))
+			} else if dnsDone {
+				timing.TimeToFirstByte = firstByteTime.Sub(dnsStart.Add(timing.DNSLookupTime))
+			} else {
+				timing.TimeToFirstByte = firstByteTime.Sub(timing.StartTime)
+			}
+		},
+	}
+
+	// Add the trace to the request context
+	httpReq = httpReq.WithContext(httptrace.WithClientTrace(ctx, trace))
 
 	// Execute the request
 	httpResp, err := c.httpClient.Do(httpReq)
@@ -80,8 +133,13 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// Calculate response time
-	responseTime := time.Since(startTime)
+	// Calculate total response time
+	timing.TotalTime = time.Since(timing.StartTime)
+
+	// Calculate content transfer time (total time minus time to first byte)
+	if !firstByteTime.IsZero() {
+		timing.ContentTransferTime = timing.TotalTime - timing.StartTime.Sub(firstByteTime)
+	}
 
 	// Create response
 	resp := &Response{
@@ -89,7 +147,8 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		Status:       httpResp.Status,
 		Headers:      httpResp.Header,
 		Body:         httpResp.Body,
-		ResponseTime: responseTime,
+		ResponseTime: timing.TotalTime, // For backward compatibility
+		Timing:       timing,
 	}
 
 	return resp, nil

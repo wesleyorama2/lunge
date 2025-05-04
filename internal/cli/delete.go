@@ -28,6 +28,7 @@ var deleteCmd = &cobra.Command{
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		timeout, _ := cmd.Flags().GetDuration("timeout")
 		noColor, _ := cmd.Flags().GetBool("no-color")
+		formatStr, _ := cmd.Flags().GetString("format")
 
 		// Parse URL to determine base URL and path
 		baseURL, path := parseURL(url)
@@ -49,8 +50,12 @@ var deleteCmd = &cobra.Command{
 			}
 		}
 
-		// Create formatter
-		formatter := output.NewFormatter(verbose, noColor)
+		// Create formatter with specified format
+		format := output.FormatText
+		if formatStr != "" {
+			format = output.OutputFormat(formatStr)
+		}
+		formatter := output.NewFormatterWithFormat(format, verbose, noColor)
 
 		// Print request
 		fmt.Print(formatter.FormatRequest(req, baseURL))
@@ -76,4 +81,5 @@ func init() {
 	deleteCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 	deleteCmd.Flags().DurationP("timeout", "t", 30*time.Second, "Request timeout")
 	deleteCmd.Flags().Bool("no-color", false, "Disable colored output")
+	deleteCmd.Flags().String("format", "", "Output format (text, json, yaml, junit)")
 }

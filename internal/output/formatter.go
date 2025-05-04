@@ -11,7 +11,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// Formatter is responsible for formatting HTTP requests and responses
+// Formatter is responsible for formatting HTTP requests and responses in text format
 type Formatter struct {
 	Verbose bool
 	NoColor bool
@@ -23,6 +23,11 @@ func NewFormatter(verbose, noColor bool) *Formatter {
 		Verbose: verbose,
 		NoColor: noColor,
 	}
+}
+
+// NewFormatterWithFormat creates a new formatter with the specified output format
+func NewFormatterWithFormat(format OutputFormat, verbose, noColor bool) FormatProvider {
+	return GetFormatter(format, verbose, noColor)
 }
 
 // FormatRequest formats an HTTP request for display
@@ -100,6 +105,17 @@ func (f *Formatter) FormatResponse(resp *http.Response) string {
 	buf.WriteString(fmt.Sprintf("◀ RESPONSE: %s (%dms)\n",
 		statusColor.Sprint(resp.Status),
 		resp.GetResponseTimeMillis()))
+
+	// Format detailed timing information if verbose
+	if f.Verbose {
+		buf.WriteString("  Timing:\n")
+		buf.WriteString(fmt.Sprintf("    DNS Lookup:      %dms\n", resp.GetDNSLookupTimeMillis()))
+		buf.WriteString(fmt.Sprintf("    TCP Connection:  %dms\n", resp.GetTCPConnectTimeMillis()))
+		buf.WriteString(fmt.Sprintf("    TLS Handshake:   %dms\n", resp.GetTLSHandshakeTimeMillis()))
+		buf.WriteString(fmt.Sprintf("    Time to First Byte: %dms\n", resp.GetTimeToFirstByteMillis()))
+		buf.WriteString(fmt.Sprintf("    Content Transfer:  %dms\n", resp.GetContentTransferTimeMillis()))
+		buf.WriteString(fmt.Sprintf("    Total:           %dms\n", resp.GetTotalTimeMillis()))
+	}
 
 	// Format headers if verbose
 	if f.Verbose {

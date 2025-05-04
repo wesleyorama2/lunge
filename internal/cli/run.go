@@ -28,6 +28,7 @@ var runCmd = &cobra.Command{
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		timeout, _ := cmd.Flags().GetDuration("timeout")
 		noColor, _ := cmd.Flags().GetBool("no-color")
+		formatStr, _ := cmd.Flags().GetString("format")
 
 		if configFile == "" {
 			fmt.Println("Error: config file is required")
@@ -70,8 +71,24 @@ var runCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Create formatter
-		formatter := output.NewFormatter(verbose, noColor)
+		// Create formatter with specified format
+		format := output.FormatText
+		if formatStr != "" {
+			format = output.OutputFormat(formatStr)
+		}
+
+		// For JUnit format, we need to create a formatter with the suite name
+		var formatter output.FormatProvider
+		if format == output.FormatJUnit {
+			junitFormatter := &output.JUnitFormatter{
+				Verbose:   verbose,
+				SuiteName: suite,
+				TestCases: make([]output.JUnitTestCase, 0),
+			}
+			formatter = junitFormatter
+		} else {
+			formatter = output.NewFormatterWithFormat(format, verbose, noColor)
+		}
 
 		// Create HTTP client
 		client := http.NewClient(
@@ -111,14 +128,14 @@ var runCmd = &cobra.Command{
 }
 
 // executeRequest executes a single request
-func executeRequest(cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool) error {
+func executeRequest(cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, verbose bool) error {
 	return executeRequestWithContext(context.Background(), cfg, requestName, env, envVars, client, formatter, timeout, verbose, true)
 }
 
 // executeRequestWithContext executes a single request with the given context and output options
 // This function is more testable because it accepts a context, returns errors instead of exiting,
 // and allows disabling output
-func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool, printOutput bool) error {
+func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, verbose bool, printOutput bool) error {
 	// Get request
 	reqConfig, ok := cfg.Requests[requestName]
 	if !ok {
@@ -284,7 +301,7 @@ func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestN
 }
 
 // executeSuite executes a suite of requests
-func executeSuite(cfg *config.Config, suiteName string, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, verbose bool) error {
+func executeSuite(cfg *config.Config, suiteName string, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, verbose bool) error {
 	// Get suite
 	suite := cfg.Suites[suiteName]
 
@@ -298,6 +315,12 @@ func executeSuite(cfg *config.Config, suiteName string, env config.Environment, 
 	// Execute requests in order
 	for _, requestName := range suite.Requests {
 		fmt.Printf("\n=== Executing request: %s ===\n\n", requestName)
+
+		// For JUnit format, set the test name
+		if format, ok := formatter.(*output.JUnitFormatter); ok {
+			format.TestName = requestName
+		}
+
 		err := executeRequest(cfg, requestName, env, envVars, client, formatter, timeout, verbose)
 		if err != nil {
 			return err
@@ -322,4 +345,5 @@ func init() {
 	runCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 	runCmd.Flags().DurationP("timeout", "t", 30*time.Second, "Request timeout")
 	runCmd.Flags().Bool("no-color", false, "Disable colored output")
+	runCmd.Flags().String("format", "", "Output format (text, json, yaml, junit)")
 }

@@ -31,6 +31,7 @@ var testCmd = &cobra.Command{
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		timeout, _ := cmd.Flags().GetDuration("timeout")
 		noColor, _ := cmd.Flags().GetBool("no-color")
+		formatStr, _ := cmd.Flags().GetString("format")
 
 		if configFile == "" {
 			fmt.Println("Error: config file is required")
@@ -67,8 +68,24 @@ var testCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Create formatter
-		formatter := output.NewFormatter(verbose, noColor)
+		// Create formatter with specified format
+		format := output.FormatText
+		if formatStr != "" {
+			format = output.OutputFormat(formatStr)
+		}
+
+		// For JUnit format, we need to create a formatter with the suite name
+		var formatter output.FormatProvider
+		if format == output.FormatJUnit {
+			junitFormatter := &output.JUnitFormatter{
+				Verbose:   verbose,
+				SuiteName: suite,
+				TestCases: make([]output.JUnitTestCase, 0),
+			}
+			formatter = junitFormatter
+		} else {
+			formatter = output.NewFormatterWithFormat(format, verbose, noColor)
+		}
 
 		// Create HTTP client
 		client := http.NewClient(
@@ -110,6 +127,13 @@ var testCmd = &cobra.Command{
 			// Run tests
 			for i, test := range suiteConfig.Tests {
 				if testName == "" || test.Name == testName {
+					// For JUnit format, set the test name
+					if format == output.FormatJUnit {
+						if junitFormatter, ok := formatter.(*output.JUnitFormatter); ok {
+							junitFormatter.TestName = test.Name
+						}
+					}
+
 					testResults := runTest(i+1, test, cfg, env, envVars, client, formatter, timeout, noColor)
 
 					totalTests++
@@ -186,13 +210,13 @@ type TestResults struct {
 }
 
 // runTest runs a single test
-func runTest(index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, noColor bool) TestResults {
+func runTest(index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, noColor bool) TestResults {
 	return runTestWithContext(context.Background(), index, test, cfg, env, envVars, client, formatter, timeout, noColor, true)
 }
 
 // runTestWithContext runs a single test with the given context and output options
 // This function is more testable because it accepts a context and allows disabling output
-func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter *output.Formatter, timeout time.Duration, noColor bool, printOutput bool) TestResults {
+func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, noColor bool, printOutput bool) TestResults {
 	if printOutput {
 		fmt.Printf("TEST %d: %s\n", index, test.Name)
 	}
@@ -609,4 +633,5 @@ func init() {
 	testCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 	testCmd.Flags().DurationP("timeout", "T", 30*time.Second, "Request timeout")
 	testCmd.Flags().Bool("no-color", false, "Disable colored output")
+	testCmd.Flags().String("format", "", "Output format (text, json, yaml, junit)")
 }
