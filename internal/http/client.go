@@ -1,8 +1,10 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
 	"time"
@@ -77,16 +79,23 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 
 	// Create a trace to capture detailed timing information
 	var dnsStart, connectStart, tlsHandshakeStart time.Time
-	var dnsDone, connectDone, tlsHandshakeDone bool
+	var dnsEnd, connectEnd, tlsHandshakeEnd time.Time
+	var dnsDone, connectDone bool
 	var firstByteTime time.Time
+	var lastPhaseEnd time.Time // Tracks the end time of the last completed phase
+
+	// Initialize lastPhaseEnd to the start time
+	lastPhaseEnd = timing.StartTime
 
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(info httptrace.DNSStartInfo) {
 			dnsStart = time.Now()
 		},
 		DNSDone: func(info httptrace.DNSDoneInfo) {
-			timing.DNSLookupTime = time.Since(dnsStart)
+			dnsEnd = time.Now()
+			timing.DNSLookupTime = dnsEnd.Sub(dnsStart)
 			dnsDone = true
+			lastPhaseEnd = dnsEnd // Update last phase end time
 		},
 		ConnectStart: func(network, addr string) {
 			if dnsDone {
@@ -95,8 +104,10 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		},
 		ConnectDone: func(network, addr string, err error) {
 			if err == nil {
-				timing.TCPConnectTime = time.Since(connectStart)
+				connectEnd = time.Now()
+				timing.TCPConnectTime = connectEnd.Sub(connectStart)
 				connectDone = true
+				lastPhaseEnd = connectEnd // Update last phase end time
 			}
 		},
 		TLSHandshakeStart: func() {
@@ -106,21 +117,15 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		},
 		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
 			if err == nil {
-				timing.TLSHandshakeTime = time.Since(tlsHandshakeStart)
-				tlsHandshakeDone = true
+				tlsHandshakeEnd = time.Now()
+				timing.TLSHandshakeTime = tlsHandshakeEnd.Sub(tlsHandshakeStart)
+				lastPhaseEnd = tlsHandshakeEnd // Update last phase end time
 			}
 		},
 		GotFirstResponseByte: func() {
 			firstByteTime = time.Now()
-			if tlsHandshakeDone {
-				timing.TimeToFirstByte = firstByteTime.Sub(tlsHandshakeStart.Add(timing.TLSHandshakeTime))
-			} else if connectDone {
-				timing.TimeToFirstByte = firstByteTime.Sub(connectStart.Add(timing.TCPConnectTime))
-			} else if dnsDone {
-				timing.TimeToFirstByte = firstByteTime.Sub(dnsStart.Add(timing.DNSLookupTime))
-			} else {
-				timing.TimeToFirstByte = firstByteTime.Sub(timing.StartTime)
-			}
+			// Calculate time to first byte from the end of the last phase
+			timing.TimeToFirstByte = firstByteTime.Sub(lastPhaseEnd)
 		},
 	}
 
@@ -136,19 +141,27 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	// Calculate total response time
 	timing.TotalTime = time.Since(timing.StartTime)
 
-	// Calculate content transfer time (total time minus time to first byte)
-	if !firstByteTime.IsZero() {
-		timing.ContentTransferTime = timing.TotalTime - timing.StartTime.Sub(firstByteTime)
-	}
+	// Read and close the body
+	contentTransferStart := time.Now()
+	bodyBytes, _ := ioutil.ReadAll(httpResp.Body)
+	httpResp.Body.Close()
+
+	// Calculate content transfer time - this is the time it took to read the body
+	timing.ContentTransferTime = time.Since(contentTransferStart)
+
+	// Create a new body reader from the bytes we read
+	bodyReader := ioutil.NopCloser(bytes.NewReader(bodyBytes))
 
 	// Create response
 	resp := &Response{
 		StatusCode:   httpResp.StatusCode,
 		Status:       httpResp.Status,
 		Headers:      httpResp.Header,
-		Body:         httpResp.Body,
-		ResponseTime: timing.TotalTime, // For backward compatibility
+		Body:         bodyReader,
+		ResponseTime: time.Since(timing.StartTime), // For backward compatibility
 		Timing:       timing,
+		rawBody:      bodyBytes, // Store the raw body so we don't need to read it again
+		parsed:       true,      // Mark as already parsed
 	}
 
 	return resp, nil

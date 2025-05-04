@@ -102,6 +102,12 @@ The timing metrics include:
 - **Content Transfer**: Time taken to download the response body
 - **Total**: Overall time from request start to completion
 
+**Note**: The individual timing metrics will not sum up to the total time. This is because:
+1. There are gaps between some phases (e.g., between DNS lookup and TCP connection)
+2. Some operations are not explicitly measured (e.g., request preparation)
+3. Each metric is measured independently using HTTP trace hooks
+4. The total time includes all operations from start to finish
+
 These metrics are also included in the structured output formats (JSON, YAML, JUnit XML), making it easy to analyze performance data programmatically.
 
 ## Using Configuration Files
