@@ -63,10 +63,46 @@ type ResponseData struct {
 	ContentLength int64             `json:"contentLength,omitempty" yaml:"contentLength,omitempty" xml:"contentLength,attr,omitempty"`
 }
 
+// TestResult represents the result of a single test
+type TestResult struct {
+	Name       string            `json:"name" yaml:"name"`
+	Passed     bool              `json:"passed" yaml:"passed"`
+	Duration   int64             `json:"durationMs" yaml:"durationMs"`
+	Assertions []AssertionResult `json:"assertions,omitempty" yaml:"assertions,omitempty"`
+	Request    *RequestData      `json:"request,omitempty" yaml:"request,omitempty"`
+	Response   *ResponseData     `json:"response,omitempty" yaml:"response,omitempty"`
+}
+
+// AssertionResult represents the result of a single assertion
+type AssertionResult struct {
+	Type     string      `json:"type" yaml:"type"`
+	Field    string      `json:"field,omitempty" yaml:"field,omitempty"`
+	Expected interface{} `json:"expected,omitempty" yaml:"expected,omitempty"`
+	Actual   interface{} `json:"actual,omitempty" yaml:"actual,omitempty"`
+	Passed   bool        `json:"passed" yaml:"passed"`
+	Message  string      `json:"message" yaml:"message"`
+}
+
+// TestSuiteResult represents the result of a test suite
+type TestSuiteResult struct {
+	Suite            string       `json:"suite" yaml:"suite"`
+	TotalTests       int          `json:"totalTests" yaml:"totalTests"`
+	PassedTests      int          `json:"passedTests" yaml:"passedTests"`
+	FailedTests      int          `json:"failedTests" yaml:"failedTests"`
+	TotalAssertions  int          `json:"totalAssertions" yaml:"totalAssertions"`
+	PassedAssertions int          `json:"passedAssertions" yaml:"passedAssertions"`
+	FailedAssertions int          `json:"failedAssertions" yaml:"failedAssertions"`
+	Duration         int64        `json:"durationMs" yaml:"durationMs"`
+	Tests            []TestResult `json:"tests" yaml:"tests"`
+	Timestamp        string       `json:"timestamp" yaml:"timestamp"`
+}
+
 // JSONFormatter formats output as JSON
 type JSONFormatter struct {
-	Verbose bool
-	Pretty  bool
+	Verbose     bool
+	Pretty      bool
+	TestResults *TestSuiteResult // Store test results for final output
+	CurrentTest *TestResult      // Current test being executed
 }
 
 // FormatRequest formats a request as JSON
@@ -177,9 +213,65 @@ func (f *JSONFormatter) FormatResponse(resp *http.Response) string {
 	return string(output)
 }
 
+// StartTest initializes a new test in the JSONFormatter
+func (f *JSONFormatter) StartTest(name string) {
+	if f.TestResults == nil {
+		f.TestResults = &TestSuiteResult{
+			Tests:     []TestResult{},
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
+	}
+	f.CurrentTest = &TestResult{
+		Name:       name,
+		Assertions: []AssertionResult{},
+	}
+}
+
+// AddAssertion adds an assertion result to the current test
+func (f *JSONFormatter) AddAssertion(assertion AssertionResult) {
+	if f.CurrentTest != nil {
+		f.CurrentTest.Assertions = append(f.CurrentTest.Assertions, assertion)
+	}
+}
+
+// EndTest finalizes the current test and adds it to the suite results
+func (f *JSONFormatter) EndTest(passed bool, duration int64) {
+	if f.CurrentTest != nil {
+		f.CurrentTest.Passed = passed
+		f.CurrentTest.Duration = duration
+		if f.TestResults != nil {
+			f.TestResults.Tests = append(f.TestResults.Tests, *f.CurrentTest)
+		}
+		f.CurrentTest = nil
+	}
+}
+
+// GetTestSuiteJSON returns the complete test suite results as JSON
+func (f *JSONFormatter) GetTestSuiteJSON() string {
+	if f.TestResults == nil {
+		return "{}"
+	}
+
+	var output []byte
+	var err error
+	if f.Pretty {
+		output, err = json.MarshalIndent(f.TestResults, "", "  ")
+	} else {
+		output, err = json.Marshal(f.TestResults)
+	}
+
+	if err != nil {
+		return fmt.Sprintf(`{"error":"Failed to marshal test results: %s"}`, err)
+	}
+
+	return string(output)
+}
+
 // YAMLFormatter formats output as YAML
 type YAMLFormatter struct {
-	Verbose bool
+	Verbose     bool
+	TestResults *TestSuiteResult // Store test results for final output
+	CurrentTest *TestResult      // Current test being executed
 }
 
 // FormatRequest formats a request as YAML
@@ -277,18 +369,71 @@ func (f *YAMLFormatter) FormatResponse(resp *http.Response) string {
 	return string(output)
 }
 
+// StartTest initializes a new test in the YAMLFormatter
+func (f *YAMLFormatter) StartTest(name string) {
+	if f.TestResults == nil {
+		f.TestResults = &TestSuiteResult{
+			Tests:     []TestResult{},
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
+	}
+	f.CurrentTest = &TestResult{
+		Name:       name,
+		Assertions: []AssertionResult{},
+	}
+}
+
+// AddAssertion adds an assertion result to the current test
+func (f *YAMLFormatter) AddAssertion(assertion AssertionResult) {
+	if f.CurrentTest != nil {
+		f.CurrentTest.Assertions = append(f.CurrentTest.Assertions, assertion)
+	}
+}
+
+// EndTest finalizes the current test and adds it to the suite results
+func (f *YAMLFormatter) EndTest(passed bool, duration int64) {
+	if f.CurrentTest != nil {
+		f.CurrentTest.Passed = passed
+		f.CurrentTest.Duration = duration
+		if f.TestResults != nil {
+			f.TestResults.Tests = append(f.TestResults.Tests, *f.CurrentTest)
+		}
+		f.CurrentTest = nil
+	}
+}
+
+// GetTestSuiteYAML returns the complete test suite results as YAML
+func (f *YAMLFormatter) GetTestSuiteYAML() string {
+	if f.TestResults == nil {
+		return "---\n{}\n"
+	}
+
+	output, err := yaml.Marshal(f.TestResults)
+	if err != nil {
+		return fmt.Sprintf("---\nerror: Failed to marshal test results: %s\n", err)
+	}
+
+	return "---\n" + string(output)
+}
+
 // JUnitFormatter formats output as JUnit XML for CI/CD integration
 type JUnitFormatter struct {
 	Verbose     bool
 	TestName    string
 	SuiteName   string
-	TestCases   []JUnitTestCase
-	CurrentTest *JUnitTestCase
+	TestResults *JUnitTestSuites   // Store complete test results
+	CurrentTest *JUnitTestCaseData // Current test being executed with full data
+	StartTime   time.Time
+}
+
+// JUnitTestSuites represents the root element containing all test suites
+type JUnitTestSuites struct {
+	XMLName    xml.Name         `xml:"testsuites"`
+	TestSuites []JUnitTestSuite `xml:"testsuite"`
 }
 
 // JUnitTestSuite represents a JUnit test suite
 type JUnitTestSuite struct {
-	XMLName   xml.Name        `xml:"testsuite"`
 	Name      string          `xml:"name,attr"`
 	Tests     int             `xml:"tests,attr"`
 	Failures  int             `xml:"failures,attr"`
@@ -296,19 +441,17 @@ type JUnitTestSuite struct {
 	Time      float64         `xml:"time,attr"`
 	Timestamp string          `xml:"timestamp,attr"`
 	TestCases []JUnitTestCase `xml:"testcase"`
+	SystemOut string          `xml:"system-out,omitempty"`
+	SystemErr string          `xml:"system-err,omitempty"`
 }
 
 // JUnitTestCase represents a JUnit test case
 type JUnitTestCase struct {
-	Name            string        `xml:"name,attr"`
-	Classname       string        `xml:"classname,attr"`
-	Time            float64       `xml:"time,attr"`
-	DNSLookup       float64       `xml:"dnsLookup,attr,omitempty"`
-	TCPConnection   float64       `xml:"tcpConnection,attr,omitempty"`
-	TLSHandshake    float64       `xml:"tlsHandshake,attr,omitempty"`
-	TimeToFirstByte float64       `xml:"timeToFirstByte,attr,omitempty"`
-	ContentTransfer float64       `xml:"contentTransfer,attr,omitempty"`
-	Failure         *JUnitFailure `xml:"failure,omitempty"`
+	Name      string        `xml:"name,attr"`
+	Classname string        `xml:"classname,attr"`
+	Time      float64       `xml:"time,attr"`
+	Failure   *JUnitFailure `xml:"failure,omitempty"`
+	SystemOut string        `xml:"system-out,omitempty"`
 }
 
 // JUnitFailure represents a JUnit test failure
@@ -318,10 +461,21 @@ type JUnitFailure struct {
 	Content string `xml:",chardata"`
 }
 
+// JUnitTestCaseData holds complete test data during execution
+type JUnitTestCaseData struct {
+	Name       string
+	StartTime  time.Time
+	Duration   int64
+	Passed     bool
+	Assertions []AssertionResult
+	Request    *RequestData
+	Response   *ResponseData
+}
+
 // FormatRequest formats a request as JUnit XML
-// Note: JUnit format is primarily for responses, so this returns minimal info
+// For JUnit format, we don't output individual requests, just collect data
 func (f *JUnitFormatter) FormatRequest(req *http.Request, baseURL string) string {
-	// Build full URL
+	// Build full URL for storage
 	fullURL := baseURL
 	if !strings.HasSuffix(baseURL, "/") && !strings.HasPrefix(req.Path, "/") {
 		fullURL += "/"
@@ -331,74 +485,192 @@ func (f *JUnitFormatter) FormatRequest(req *http.Request, baseURL string) string
 		fullURL += "?" + req.QueryParams.Encode()
 	}
 
-	// For requests, we just return a simple XML comment
-	return fmt.Sprintf("<!-- Request: %s %s -->", req.Method, fullURL)
+	// Store request data if we have a current test
+	if f.CurrentTest != nil {
+		queryParams := make(map[string]string)
+		for key, values := range req.QueryParams {
+			if len(values) > 0 {
+				queryParams[key] = values[0]
+			}
+		}
+
+		f.CurrentTest.Request = &RequestData{
+			Method:      req.Method,
+			URL:         fullURL,
+			Headers:     req.Headers,
+			QueryParams: queryParams,
+			Body:        req.Body,
+			Timestamp:   time.Now().Format(time.RFC3339),
+		}
+	}
+
+	// Return empty string as we don't output anything during test execution
+	return ""
 }
 
 // FormatResponse formats a response as JUnit XML
+// For JUnit format, we don't output individual responses, just collect data
 func (f *JUnitFormatter) FormatResponse(resp *http.Response) string {
-	testName := f.TestName
-	if testName == "" {
-		testName = "HTTP Request"
-	}
+	// Store response data if we have a current test
+	if f.CurrentTest != nil {
+		headers := make(map[string]string)
+		for key, values := range resp.Headers {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
 
-	// Create test case
-	testCase := JUnitTestCase{
-		Name:            testName,
-		Classname:       "lunge.http",
-		Time:            float64(resp.GetResponseTimeMillis()) / 1000.0,
-		DNSLookup:       float64(resp.GetDNSLookupTimeMillis()) / 1000.0,
-		TCPConnection:   float64(resp.GetTCPConnectTimeMillis()) / 1000.0,
-		TLSHandshake:    float64(resp.GetTLSHandshakeTimeMillis()) / 1000.0,
-		TimeToFirstByte: float64(resp.GetTimeToFirstByteMillis()) / 1000.0,
-		ContentTransfer: float64(resp.GetContentTransferTimeMillis()) / 1000.0,
-	}
+		var body interface{}
+		bodyStr, err := resp.GetBodyAsString()
+		if err == nil && bodyStr != "" {
+			// Try to parse as JSON
+			err = json.Unmarshal([]byte(bodyStr), &body)
+			if err != nil {
+				// If not valid JSON, use as string
+				body = bodyStr
+			}
+		}
 
-	// Add failure if response is not successful
-	if !resp.IsSuccess() {
-		bodyStr, _ := resp.GetBodyAsString()
-		testCase.Failure = &JUnitFailure{
-			Message: fmt.Sprintf("HTTP Status %d: %s", resp.StatusCode, resp.Status),
-			Type:    "HttpStatusError",
-			Content: bodyStr,
+		f.CurrentTest.Response = &ResponseData{
+			StatusCode:   resp.StatusCode,
+			Status:       resp.Status,
+			Headers:      headers,
+			Body:         body,
+			ResponseTime: resp.GetResponseTimeMillis(),
+			Timing: TimingData{
+				DNSLookup:       resp.GetDNSLookupTimeMillis(),
+				TCPConnection:   resp.GetTCPConnectTimeMillis(),
+				TLSHandshake:    resp.GetTLSHandshakeTimeMillis(),
+				TimeToFirstByte: resp.GetTimeToFirstByteMillis(),
+				ContentTransfer: resp.GetContentTransferTimeMillis(),
+				Total:           resp.GetTotalTimeMillis(),
+			},
+			Timestamp: time.Now().Format(time.RFC3339),
 		}
 	}
 
-	// Store the current test case
-	f.CurrentTest = &testCase
-	f.TestCases = append(f.TestCases, testCase)
+	// Return empty string as we don't output anything during test execution
+	return ""
+}
 
-	// Create test suite with all test cases
-	suiteName := f.SuiteName
-	if suiteName == "" {
-		suiteName = "Lunge HTTP Tests"
-	}
-
-	suite := JUnitTestSuite{
-		Name:      suiteName,
-		Tests:     len(f.TestCases),
-		Failures:  0,
-		Errors:    0,
-		Time:      float64(resp.GetResponseTimeMillis()) / 1000.0, // This will be updated with total time
-		Timestamp: time.Now().Format(time.RFC3339),
-		TestCases: f.TestCases,
-	}
-
-	// Count failures
-	for _, tc := range f.TestCases {
-		if tc.Failure != nil {
-			suite.Failures++
+// StartTest initializes a new test in the JUnitFormatter
+func (f *JUnitFormatter) StartTest(name string) {
+	if f.TestResults == nil {
+		f.TestResults = &JUnitTestSuites{
+			TestSuites: []JUnitTestSuite{},
 		}
+		f.StartTime = time.Now()
+	}
+	f.CurrentTest = &JUnitTestCaseData{
+		Name:       name,
+		StartTime:  time.Now(),
+		Assertions: []AssertionResult{},
+	}
+}
+
+// AddAssertion adds an assertion result to the current test
+func (f *JUnitFormatter) AddAssertion(assertion AssertionResult) {
+	if f.CurrentTest != nil {
+		f.CurrentTest.Assertions = append(f.CurrentTest.Assertions, assertion)
+	}
+}
+
+// EndTest finalizes the current test and stores it for later output
+func (f *JUnitFormatter) EndTest(passed bool, duration int64) {
+	if f.CurrentTest != nil {
+		f.CurrentTest.Passed = passed
+		f.CurrentTest.Duration = duration
+		// Don't clear CurrentTest here - it will be used by the caller
+	}
+}
+
+// GetTestSuiteXML returns the complete test suite results as JUnit XML
+func (f *JUnitFormatter) GetTestSuiteXML() string {
+	if f.TestResults == nil || len(f.TestResults.TestSuites) == 0 {
+		// Create a default empty test suite
+		emptyTestSuites := &JUnitTestSuites{
+			TestSuites: []JUnitTestSuite{
+				{
+					Name:      f.SuiteName,
+					Tests:     0,
+					Failures:  0,
+					Errors:    0,
+					Time:      0,
+					Timestamp: time.Now().Format(time.RFC3339),
+					TestCases: []JUnitTestCase{},
+				},
+			},
+		}
+		output, _ := xml.MarshalIndent(emptyTestSuites, "", "  ")
+		return xml.Header + string(output)
 	}
 
 	// Marshal to XML
-	output, err := xml.MarshalIndent(suite, "", "  ")
+	output, err := xml.MarshalIndent(f.TestResults, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("<!-- Error: Failed to marshal response: %s -->", err)
+		return fmt.Sprintf("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- Error: Failed to marshal test results: %s -->", err)
 	}
 
 	// Add XML header
 	return xml.Header + string(output)
+}
+
+// SetTestSuite sets the test suite information with all test results
+func (f *JUnitFormatter) SetTestSuite(suiteName string, tests []JUnitTestCaseData, totalDuration int64) {
+	if f.TestResults == nil {
+		f.TestResults = &JUnitTestSuites{
+			TestSuites: []JUnitTestSuite{},
+		}
+	}
+
+	suite := JUnitTestSuite{
+		Name:      suiteName,
+		Tests:     len(tests),
+		Failures:  0,
+		Errors:    0,
+		Time:      float64(totalDuration) / 1000.0,
+		Timestamp: f.StartTime.Format(time.RFC3339),
+		TestCases: []JUnitTestCase{},
+	}
+
+	// Convert test data to JUnit test cases
+	for _, test := range tests {
+		testCase := JUnitTestCase{
+			Name:      test.Name,
+			Classname: "lunge." + suiteName,
+			Time:      float64(test.Duration) / 1000.0,
+		}
+
+		// If test failed, create failure element
+		if !test.Passed {
+			failureMessages := []string{}
+			for _, assertion := range test.Assertions {
+				if !assertion.Passed {
+					failureMessages = append(failureMessages, assertion.Message)
+				}
+			}
+
+			testCase.Failure = &JUnitFailure{
+				Message: fmt.Sprintf("Test failed with %d assertion failures", len(failureMessages)),
+				Type:    "AssertionError",
+				Content: strings.Join(failureMessages, "\n"),
+			}
+			suite.Failures++
+		}
+
+		// Add system output with request/response details if verbose
+		if f.Verbose && test.Request != nil && test.Response != nil {
+			var systemOut []string
+			systemOut = append(systemOut, fmt.Sprintf("Request: %s %s", test.Request.Method, test.Request.URL))
+			systemOut = append(systemOut, fmt.Sprintf("Response: %d %s", test.Response.StatusCode, test.Response.Status))
+			systemOut = append(systemOut, fmt.Sprintf("Response Time: %dms", test.Response.ResponseTime))
+			testCase.SystemOut = strings.Join(systemOut, "\n")
+		}
+
+		suite.TestCases = append(suite.TestCases, testCase)
+	}
+
+	f.TestResults.TestSuites = []JUnitTestSuite{suite}
 }
 
 // GetFormatter returns the appropriate formatter for the given format
@@ -411,7 +683,6 @@ func GetFormatter(format OutputFormat, verbose bool, noColor bool) FormatProvide
 	case FormatJUnit:
 		return &JUnitFormatter{
 			Verbose:   verbose,
-			TestCases: make([]JUnitTestCase, 0),
 			SuiteName: "Lunge HTTP Tests",
 		}
 	default:

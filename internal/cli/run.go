@@ -83,7 +83,6 @@ var runCmd = &cobra.Command{
 			junitFormatter := &output.JUnitFormatter{
 				Verbose:   verbose,
 				SuiteName: suite,
-				TestCases: make([]output.JUnitTestCase, 0),
 			}
 			formatter = junitFormatter
 		} else {
@@ -312,9 +311,18 @@ func executeSuite(cfg *config.Config, suiteName string, env config.Environment, 
 		}
 	}
 
+	// Determine if we should print status messages
+	isTextFormat := false
+	if _, ok := formatter.(*output.Formatter); ok {
+		isTextFormat = true
+	}
+
 	// Execute requests in order
 	for _, requestName := range suite.Requests {
-		fmt.Printf("\n=== Executing request: %s ===\n\n", requestName)
+		// Only print status messages for text format
+		if isTextFormat {
+			fmt.Printf("\n=== Executing request: %s ===\n\n", requestName)
+		}
 
 		// For JUnit format, set the test name
 		if format, ok := formatter.(*output.JUnitFormatter); ok {

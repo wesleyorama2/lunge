@@ -167,7 +167,6 @@ func TestJUnitFormatter(t *testing.T) {
 		Verbose:   true,
 		TestName:  "TestRequest",
 		SuiteName: "TestSuite",
-		TestCases: make([]JUnitTestCase, 0),
 	}
 	req, baseURL := setupTestRequest()
 	resp := setupTestResponse()

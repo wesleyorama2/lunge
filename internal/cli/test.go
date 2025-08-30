@@ -74,15 +74,17 @@ var testCmd = &cobra.Command{
 			format = output.OutputFormat(formatStr)
 		}
 
-		// For JUnit format, we need to create a formatter with the suite name
 		var formatter output.FormatProvider
+		var junitFormatter *output.JUnitFormatter
+		var junitTestData []output.JUnitTestCaseData
+
 		if format == output.FormatJUnit {
-			junitFormatter := &output.JUnitFormatter{
+			junitFormatter = &output.JUnitFormatter{
 				Verbose:   verbose,
 				SuiteName: suite,
-				TestCases: make([]output.JUnitTestCase, 0),
 			}
 			formatter = junitFormatter
+			junitTestData = []output.JUnitTestCaseData{}
 		} else {
 			formatter = output.NewFormatterWithFormat(format, verbose, noColor)
 		}
@@ -122,19 +124,49 @@ var testCmd = &cobra.Command{
 				}
 			}
 
-			fmt.Printf("▶ RUNNING TEST SUITE: %s (%d tests)\n\n", suite, len(suiteConfig.Tests))
+			// Only print status messages for text format
+			if format == output.FormatText {
+				fmt.Printf("▶ RUNNING TEST SUITE: %s (%d tests)\n\n", suite, len(suiteConfig.Tests))
+			}
+
+			// Initialize JSON formatter if needed
+			if format == output.FormatJSON {
+				if jsonFormatter, ok := formatter.(*output.JSONFormatter); ok {
+					jsonFormatter.TestResults = &output.TestSuiteResult{
+						Suite:     suite,
+						Timestamp: time.Now().Format(time.RFC3339),
+						Tests:     []output.TestResult{},
+					}
+				}
+			}
+
+			// Initialize YAML formatter if needed
+			if format == output.FormatYAML {
+				if yamlFormatter, ok := formatter.(*output.YAMLFormatter); ok {
+					yamlFormatter.TestResults = &output.TestSuiteResult{
+						Suite:     suite,
+						Timestamp: time.Now().Format(time.RFC3339),
+						Tests:     []output.TestResult{},
+					}
+				}
+			}
 
 			// Run tests
 			for i, test := range suiteConfig.Tests {
 				if testName == "" || test.Name == testName {
-					// For JUnit format, set the test name
-					if format == output.FormatJUnit {
-						if junitFormatter, ok := formatter.(*output.JUnitFormatter); ok {
-							junitFormatter.TestName = test.Name
-						}
-					}
-
+					testStartTime := time.Now()
 					testResults := runTest(i+1, test, cfg, env, envVars, client, formatter, timeout, noColor)
+					testDuration := time.Since(testStartTime).Milliseconds()
+
+					// For JUnit format, collect test data after the test completes
+					if format == output.FormatJUnit && junitFormatter != nil && junitFormatter.CurrentTest != nil {
+						testData := *junitFormatter.CurrentTest
+						testData.Duration = testDuration
+						testData.Passed = testResults.passed
+						junitTestData = append(junitTestData, testData)
+						// Clear CurrentTest for next test
+						junitFormatter.CurrentTest = nil
+					}
 
 					totalTests++
 					if testResults.passed {
@@ -156,43 +188,85 @@ var testCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Print summary
+		// Calculate duration
 		duration := time.Since(startTime)
-		fmt.Printf("\n▶ TEST SUITE SUMMARY: %s\n", suite)
 
-		// Format test results
-		testColor := color.New(color.Bold)
-		if failedTests > 0 {
-			testColor.Add(color.FgRed)
-		} else {
-			testColor.Add(color.FgGreen)
+		// Handle different output formats
+		if format == output.FormatJSON {
+			// Update JSON formatter with final statistics
+			if jsonFormatter, ok := formatter.(*output.JSONFormatter); ok {
+				if jsonFormatter.TestResults != nil {
+					jsonFormatter.TestResults.TotalTests = totalTests
+					jsonFormatter.TestResults.PassedTests = passedTests
+					jsonFormatter.TestResults.FailedTests = failedTests
+					jsonFormatter.TestResults.TotalAssertions = totalAssertions
+					jsonFormatter.TestResults.PassedAssertions = passedAssertions
+					jsonFormatter.TestResults.FailedAssertions = failedAssertions
+					jsonFormatter.TestResults.Duration = duration.Milliseconds()
+				}
+				// Print the complete JSON output
+				fmt.Println(jsonFormatter.GetTestSuiteJSON())
+			}
+		} else if format == output.FormatYAML {
+			// Update YAML formatter with final statistics
+			if yamlFormatter, ok := formatter.(*output.YAMLFormatter); ok {
+				if yamlFormatter.TestResults != nil {
+					yamlFormatter.TestResults.TotalTests = totalTests
+					yamlFormatter.TestResults.PassedTests = passedTests
+					yamlFormatter.TestResults.FailedTests = failedTests
+					yamlFormatter.TestResults.TotalAssertions = totalAssertions
+					yamlFormatter.TestResults.PassedAssertions = passedAssertions
+					yamlFormatter.TestResults.FailedAssertions = failedAssertions
+					yamlFormatter.TestResults.Duration = duration.Milliseconds()
+				}
+				// Print the complete YAML output
+				fmt.Println(yamlFormatter.GetTestSuiteYAML())
+			}
+		} else if format == output.FormatJUnit {
+			// Output JUnit XML format
+			if junitFormatter != nil {
+				junitFormatter.SetTestSuite(suite, junitTestData, duration.Milliseconds())
+				xmlOutput := junitFormatter.GetTestSuiteXML()
+				fmt.Print(xmlOutput)
+			}
+		} else if format == output.FormatText {
+			// Print text summary
+			fmt.Printf("\n▶ TEST SUITE SUMMARY: %s\n", suite)
+
+			// Format test results
+			testColor := color.New(color.Bold)
+			if failedTests > 0 {
+				testColor.Add(color.FgRed)
+			} else {
+				testColor.Add(color.FgGreen)
+			}
+
+			if noColor {
+				testColor.DisableColor()
+			}
+
+			testStatus := "✅"
+			if failedTests > 0 {
+				testStatus = "❌"
+			}
+
+			fmt.Printf("  %s Tests: %s passed, %s failed\n",
+				testStatus,
+				testColor.Sprint(passedTests),
+				testColor.Sprint(failedTests))
+
+			assertionStatus := "✅"
+			if failedAssertions > 0 {
+				assertionStatus = "❌"
+			}
+
+			fmt.Printf("  %s Assertions: %s passed, %s failed\n",
+				assertionStatus,
+				testColor.Sprint(passedAssertions),
+				testColor.Sprint(failedAssertions))
+
+			fmt.Printf("  %s Total time: %dms\n", testStatus, duration.Milliseconds())
 		}
-
-		if noColor {
-			testColor.DisableColor()
-		}
-
-		testStatus := "✅"
-		if failedTests > 0 {
-			testStatus = "❌"
-		}
-
-		fmt.Printf("  %s Tests: %s passed, %s failed\n",
-			testStatus,
-			testColor.Sprint(passedTests),
-			testColor.Sprint(failedTests))
-
-		assertionStatus := "✅"
-		if failedAssertions > 0 {
-			assertionStatus = "❌"
-		}
-
-		fmt.Printf("  %s Assertions: %s passed, %s failed\n",
-			assertionStatus,
-			testColor.Sprint(passedAssertions),
-			testColor.Sprint(failedAssertions))
-
-		fmt.Printf("  %s Total time: %dms\n", testStatus, duration.Milliseconds())
 
 		// Exit with error if any tests failed
 		if failedTests > 0 {
@@ -217,7 +291,40 @@ func runTest(index int, test config.Test, cfg *config.Config, env config.Environ
 // runTestWithContext runs a single test with the given context and output options
 // This function is more testable because it accepts a context and allows disabling output
 func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, noColor bool, printOutput bool) TestResults {
-	if printOutput {
+	// Determine the format type
+	isJSONFormat := false
+	isYAMLFormat := false
+	isJUnitFormat := false
+	isTextFormat := true
+	var jsonFormatter *output.JSONFormatter
+	var yamlFormatter *output.YAMLFormatter
+	var junitFormatter *output.JUnitFormatter
+
+	if jf, ok := formatter.(*output.JSONFormatter); ok {
+		isJSONFormat = true
+		isTextFormat = false
+		jsonFormatter = jf
+		// Start a new test in JSON formatter
+		jsonFormatter.StartTest(test.Name)
+	} else if yf, ok := formatter.(*output.YAMLFormatter); ok {
+		isYAMLFormat = true
+		isTextFormat = false
+		yamlFormatter = yf
+		// Start a new test in YAML formatter
+		yamlFormatter.StartTest(test.Name)
+	} else if jf, ok := formatter.(*output.JUnitFormatter); ok {
+		isJUnitFormat = true
+		isTextFormat = false
+		junitFormatter = jf
+		// Start a new test in JUnit formatter
+		junitFormatter.StartTest(test.Name)
+	} else if _, ok := formatter.(*output.Formatter); !ok {
+		// Not text format
+		isTextFormat = false
+	}
+
+	// Only print for text format
+	if printOutput && isTextFormat {
 		fmt.Printf("TEST %d: %s\n", index, test.Name)
 	}
 
@@ -264,9 +371,48 @@ func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *c
 		req.WithBody(reqConfig.Body)
 	}
 
-	// Print request if enabled
-	if printOutput {
+	// Print request if enabled (only for text format)
+	if printOutput && isTextFormat {
 		fmt.Print("  " + strings.Replace(formatter.FormatRequest(req, baseURL), "\n", "\n  ", -1))
+	} else if isJUnitFormat && junitFormatter != nil {
+		// JUnit formatter stores request data internally
+		formatter.FormatRequest(req, baseURL)
+	} else if isJSONFormat && jsonFormatter != nil && jsonFormatter.CurrentTest != nil {
+		// Store request data in JSON formatter
+		// Parse the request into structured data for JSON output
+		queryParams := make(map[string]string)
+		for key, values := range req.QueryParams {
+			if len(values) > 0 {
+				queryParams[key] = values[0]
+			}
+		}
+
+		jsonFormatter.CurrentTest.Request = &output.RequestData{
+			Method:      req.Method,
+			URL:         baseURL + req.Path,
+			Headers:     req.Headers,
+			QueryParams: queryParams,
+			Body:        req.Body,
+			Timestamp:   time.Now().Format(time.RFC3339),
+		}
+	} else if isYAMLFormat && yamlFormatter != nil && yamlFormatter.CurrentTest != nil {
+		// Store request data in YAML formatter
+		// Parse the request into structured data for YAML output
+		queryParams := make(map[string]string)
+		for key, values := range req.QueryParams {
+			if len(values) > 0 {
+				queryParams[key] = values[0]
+			}
+		}
+
+		yamlFormatter.CurrentTest.Request = &output.RequestData{
+			Method:      req.Method,
+			URL:         baseURL + req.Path,
+			Headers:     req.Headers,
+			QueryParams: queryParams,
+			Body:        req.Body,
+			Timestamp:   time.Now().Format(time.RFC3339),
+		}
 	}
 
 	// Create a timeout context if one wasn't provided
@@ -289,9 +435,84 @@ func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *c
 		return TestResults{passed: false}
 	}
 
-	// Print response if enabled
-	if printOutput {
+	// Print response if enabled (only for text format)
+	if printOutput && isTextFormat {
 		fmt.Print("  " + strings.Replace(formatter.FormatResponse(resp), "\n", "\n  ", -1))
+	} else if isJUnitFormat && junitFormatter != nil {
+		// JUnit formatter stores response data internally
+		formatter.FormatResponse(resp)
+	} else if isJSONFormat && jsonFormatter != nil && jsonFormatter.CurrentTest != nil {
+		// Store response data in JSON formatter
+		headers := make(map[string]string)
+		for key, values := range resp.Headers {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+
+		var body interface{}
+		bodyStr, err := resp.GetBodyAsString()
+		if err == nil && bodyStr != "" {
+			// Try to parse as JSON
+			err = json.Unmarshal([]byte(bodyStr), &body)
+			if err != nil {
+				// If not valid JSON, use as string
+				body = bodyStr
+			}
+		}
+
+		jsonFormatter.CurrentTest.Response = &output.ResponseData{
+			StatusCode:   resp.StatusCode,
+			Status:       resp.Status,
+			Headers:      headers,
+			Body:         body,
+			ResponseTime: resp.GetResponseTimeMillis(),
+			Timing: output.TimingData{
+				DNSLookup:       resp.GetDNSLookupTimeMillis(),
+				TCPConnection:   resp.GetTCPConnectTimeMillis(),
+				TLSHandshake:    resp.GetTLSHandshakeTimeMillis(),
+				TimeToFirstByte: resp.GetTimeToFirstByteMillis(),
+				ContentTransfer: resp.GetContentTransferTimeMillis(),
+				Total:           resp.GetTotalTimeMillis(),
+			},
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
+	} else if isYAMLFormat && yamlFormatter != nil && yamlFormatter.CurrentTest != nil {
+		// Store response data in YAML formatter
+		headers := make(map[string]string)
+		for key, values := range resp.Headers {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
+
+		var body interface{}
+		bodyStr, err := resp.GetBodyAsString()
+		if err == nil && bodyStr != "" {
+			// Try to parse as JSON
+			err = json.Unmarshal([]byte(bodyStr), &body)
+			if err != nil {
+				// If not valid JSON, use as string
+				body = bodyStr
+			}
+		}
+
+		yamlFormatter.CurrentTest.Response = &output.ResponseData{
+			StatusCode:   resp.StatusCode,
+			Status:       resp.Status,
+			Headers:      headers,
+			Body:         body,
+			ResponseTime: resp.GetResponseTimeMillis(),
+			Timing: output.TimingData{
+				DNSLookup:       resp.GetDNSLookupTimeMillis(),
+				TCPConnection:   resp.GetTCPConnectTimeMillis(),
+				TLSHandshake:    resp.GetTLSHandshakeTimeMillis(),
+				TimeToFirstByte: resp.GetTimeToFirstByteMillis(),
+				ContentTransfer: resp.GetContentTransferTimeMillis(),
+				Total:           resp.GetTotalTimeMillis(),
+			},
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
 	}
 
 	// Extract variables
@@ -319,25 +540,166 @@ func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *c
 
 		if passed {
 			results.passedAssertions++
-			if printOutput {
+			if printOutput && isTextFormat {
 				fmt.Printf("  %s ASSERTION PASSED: %s\n", output.SuccessIcon(noColor), message)
 			}
 		} else {
 			results.failedAssertions++
 			results.passed = false
-			if printOutput {
+			if printOutput && isTextFormat {
 				fmt.Printf("  %s ASSERTION FAILED: %s\n", output.ErrorIcon(noColor), message)
 			}
 		}
+
+		// Add assertion to JSON formatter if applicable
+		if isJSONFormat && jsonFormatter != nil {
+			// Determine assertion type from the assertion map
+			assertionType := "unknown"
+			var field string
+			var expected interface{}
+			var actual interface{}
+
+			if _, ok := assertion["status"]; ok {
+				assertionType = "status"
+				expected = assertion["status"]
+				actual = resp.StatusCode
+			} else if _, ok := assertion["responseTime"]; ok {
+				assertionType = "responseTime"
+				expected = assertion["responseTime"]
+				actual = resp.GetResponseTimeMillis()
+			} else if _, ok := assertion["body"]; ok {
+				assertionType = "body"
+				field = "body"
+				expected = assertion["body"]
+				actual = responseBody
+			} else if _, ok := assertion["jsonPath"]; ok {
+				assertionType = "jsonPath"
+				field = fmt.Sprintf("%v", assertion["jsonPath"])
+				if val, ok := assertion["value"]; ok {
+					expected = val
+				}
+			} else if _, ok := assertion["jsonSchema"]; ok {
+				assertionType = "jsonSchema"
+				expected = assertion["jsonSchema"]
+			}
+
+			jsonFormatter.AddAssertion(output.AssertionResult{
+				Type:     assertionType,
+				Field:    field,
+				Expected: expected,
+				Actual:   actual,
+				Passed:   passed,
+				Message:  message,
+			})
+		}
+
+		// Add assertion to YAML formatter if applicable
+		if isYAMLFormat && yamlFormatter != nil {
+			// Determine assertion type from the assertion map
+			assertionType := "unknown"
+			var field string
+			var expected interface{}
+			var actual interface{}
+
+			if _, ok := assertion["status"]; ok {
+				assertionType = "status"
+				expected = assertion["status"]
+				actual = resp.StatusCode
+			} else if _, ok := assertion["responseTime"]; ok {
+				assertionType = "responseTime"
+				expected = assertion["responseTime"]
+				actual = resp.GetResponseTimeMillis()
+			} else if _, ok := assertion["body"]; ok {
+				assertionType = "body"
+				field = "body"
+				expected = assertion["body"]
+				actual = responseBody
+			} else if _, ok := assertion["jsonPath"]; ok {
+				assertionType = "jsonPath"
+				field = fmt.Sprintf("%v", assertion["jsonPath"])
+				if val, ok := assertion["value"]; ok {
+					expected = val
+				}
+			} else if _, ok := assertion["jsonSchema"]; ok {
+				assertionType = "jsonSchema"
+				expected = assertion["jsonSchema"]
+			}
+
+			yamlFormatter.AddAssertion(output.AssertionResult{
+				Type:     assertionType,
+				Field:    field,
+				Expected: expected,
+				Actual:   actual,
+				Passed:   passed,
+				Message:  message,
+			})
+		}
+
+		// Add assertion to JUnit formatter if applicable
+		if isJUnitFormat && junitFormatter != nil {
+			// Determine assertion type from the assertion map
+			assertionType := "unknown"
+			var field string
+			var expected interface{}
+			var actual interface{}
+
+			if _, ok := assertion["status"]; ok {
+				assertionType = "status"
+				expected = assertion["status"]
+				actual = resp.StatusCode
+			} else if _, ok := assertion["responseTime"]; ok {
+				assertionType = "responseTime"
+				expected = assertion["responseTime"]
+				actual = resp.GetResponseTimeMillis()
+			} else if _, ok := assertion["body"]; ok {
+				assertionType = "body"
+				field = "body"
+				expected = assertion["body"]
+				actual = responseBody
+			} else if _, ok := assertion["jsonPath"]; ok {
+				assertionType = "jsonPath"
+				field = fmt.Sprintf("%v", assertion["jsonPath"])
+				if val, ok := assertion["value"]; ok {
+					expected = val
+				}
+			} else if _, ok := assertion["jsonSchema"]; ok {
+				assertionType = "jsonSchema"
+				expected = assertion["jsonSchema"]
+			}
+
+			junitFormatter.AddAssertion(output.AssertionResult{
+				Type:     assertionType,
+				Field:    field,
+				Expected: expected,
+				Actual:   actual,
+				Passed:   passed,
+				Message:  message,
+			})
+		}
 	}
 
-	// Print test result if enabled
-	if printOutput {
+	// Print test result if enabled (only for text format)
+	if printOutput && isTextFormat {
 		if results.passed {
 			fmt.Printf("\n  %s TEST PASSED (%dms)\n\n", output.SuccessIcon(noColor), resp.GetResponseTimeMillis())
 		} else {
 			fmt.Printf("\n  %s TEST FAILED (%dms)\n\n", output.ErrorIcon(noColor), resp.GetResponseTimeMillis())
 		}
+	}
+
+	// End test in JSON formatter
+	if isJSONFormat && jsonFormatter != nil {
+		jsonFormatter.EndTest(results.passed, resp.GetResponseTimeMillis())
+	}
+
+	// End test in YAML formatter
+	if isYAMLFormat && yamlFormatter != nil {
+		yamlFormatter.EndTest(results.passed, resp.GetResponseTimeMillis())
+	}
+
+	// End test in JUnit formatter
+	if isJUnitFormat && junitFormatter != nil {
+		junitFormatter.EndTest(results.passed, resp.GetResponseTimeMillis())
 	}
 
 	return results
