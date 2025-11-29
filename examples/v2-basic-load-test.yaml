@@ -1,0 +1,108 @@
+# v2-basic-load-test.yaml
+# Basic Load Test - Constant VUs
+#
+# This is a simple load test using constant virtual users.
+# Ideal for:
+#   - Baseline performance testing
+#   - Quick validation of system performance
+#   - Simple concurrent user simulation
+#
+# Usage:
+#   lunge perf -c examples/v2-basic-load-test.yaml
+#
+# Or with CLI flags only:
+#   lunge perf --url https://httpbin.org/get --vus 10 --duration 1m
+
+name: "Basic Load Test"
+description: "Simple constant VUs load test for baseline performance measurement"
+
+# Global settings for all scenarios
+settings:
+  # Base URL can be overridden with environment variable
+  baseUrl: "${BASE_URL:-https://httpbin.org}"
+  timeout: 30s
+  maxConnectionsPerHost: 50
+  maxIdleConnsPerHost: 50
+  userAgent: "lunge/2.0-basic-load-test"
+  headers:
+    Accept: "application/json"
+
+# Single scenario with constant VUs
+scenarios:
+  basic_load:
+    # constant-vus: maintains a fixed number of virtual users
+    executor: constant-vus
+    
+    # Number of concurrent virtual users
+    # Each VU loops through the requests continuously
+    vus: 10
+    
+    # Total test duration
+    duration: 2m
+    
+    # Wait time for iterations to complete during graceful shutdown
+    gracefulStop: 10s
+    
+    # Tags for metric filtering
+    tags:
+      test_type: "basic"
+      environment: "test"
+    
+    # Requests executed by each VU in sequence
+    requests:
+      # Request 1: Simple GET request
+      - name: "GET Request"
+        method: GET
+        url: "{{baseUrl}}/get"
+        headers:
+          X-Request-ID: "{{requestId}}"
+        
+        # Basic assertions to validate response
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+          - type: duration
+            condition: lt
+            value: "2s"
+
+      # Request 2: GET with query parameters
+      - name: "GET with Parameters"
+        method: GET
+        url: "{{baseUrl}}/get?page=1&limit=10"
+        thinkTime: 100ms  # Small delay between requests
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # Request 3: Check headers endpoint
+      - name: "Headers Check"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+# Pass/fail criteria for the test
+thresholds:
+  # Request duration thresholds
+  http_req_duration:
+    - "p95 < 1s"      # 95th percentile should be under 1 second
+    - "avg < 500ms"   # Average should be under 500ms
+  
+  # Error rate threshold
+  http_req_failed:
+    - "rate < 0.05"   # Less than 5% errors acceptable for basic test
+  
+  # Throughput threshold
+  http_reqs:
+    - "rate > 5"      # At least 5 requests per second
+
+# Execution options
+options:
+  # Timeout for individual iterations
+  iterationsTimeout: 30s

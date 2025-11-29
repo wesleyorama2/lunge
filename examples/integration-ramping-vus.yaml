@@ -1,0 +1,75 @@
+name: "integration-ramping-vus"
+description: "Detailed test for ramping VUs executor"
+
+settings:
+  baseUrl: "http://localhost:80"
+  timeout: 30s
+  maxConnectionsPerHost: 50
+  userAgent: "lunge/2.0-ramping-vus-test"
+  headers:
+    Accept: "application/json"
+
+variables:
+  test_name: "ramping-vus-test"
+
+scenarios:
+  ramping_vus_detailed:
+    executor: ramping-vus
+    stages:
+      # Ramp up phase
+      - duration: 5s
+        target: 2
+      # Peak load phase
+      - duration: 10s
+        target: 8
+      # Sustained load phase
+      - duration: 10s
+        target: 5
+      # Ramp down phase
+      - duration: 5s
+        target: 0
+    
+    requests:
+      # Test POST with JSON body
+      - name: "POST JSON"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+          X-Test-Name: "{{test_name}}"
+        body: '{"timestamp": "{{test_name}}", "executor": "ramping-vus"}'
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test PUT request
+      - name: "PUT Request"
+        method: PUT
+        url: "{{baseUrl}}/put"
+        headers:
+          Content-Type: "application/json"
+        body: '{"update": true, "test": "ramping-vus"}'
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test PATCH request
+      - name: "PATCH Request"
+        method: PATCH
+        url: "{{baseUrl}}/patch"
+        headers:
+          Content-Type: "application/json"
+        body: '{"partial": "update"}'
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+thresholds:
+  http_req_duration:
+    - "p95 < 400ms"
+    - "avg < 150ms"
+  http_req_failed:
+    - "rate < 0.02"

@@ -1,0 +1,161 @@
+# v2 Performance Engine Integration Test Configuration
+# This example demonstrates all executor types and configuration options
+
+name: "v2 Engine Integration Test"
+description: "Comprehensive test demonstrating all v2 executor types and features"
+
+# Global settings applied to all scenarios
+settings:
+  baseUrl: "https://httpbin.org"  # Test target (can be overridden per request)
+  timeout: 30s
+  maxConnectionsPerHost: 100
+  maxIdleConnsPerHost: 100
+  userAgent: "lunge/2.0-integration-test"
+  headers:
+    Accept: "application/json"
+    X-Test-Header: "integration-test"
+
+# Global variables available to all scenarios
+variables:
+  environment: "test"
+  api_version: "v1"
+
+# Scenario definitions - each runs with its own executor
+scenarios:
+  # Scenario 1: Constant VUs - Fixed number of virtual users
+  constant_vus_test:
+    executor: constant-vus
+    vus: 5                    # Fixed number of virtual users
+    duration: 30s             # Run for 30 seconds
+    gracefulStop: 5s          # Wait up to 5s for iterations to finish
+    tags:
+      scenario_type: "constant"
+    requests:
+      - name: "get_ip"
+        method: GET
+        url: "{{baseUrl}}/ip"
+        thinkTime: 100ms      # Wait 100ms between requests in iteration
+
+      - name: "get_headers"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        headers:
+          X-Custom-Header: "custom-value"
+
+  # Scenario 2: Ramping VUs - VU count changes over time
+  ramping_vus_test:
+    executor: ramping-vus
+    stages:
+      - name: "ramp-up"
+        duration: 10s
+        target: 5             # Ramp up to 5 VUs
+      - name: "sustained"
+        duration: 20s
+        target: 10            # Stay at 10 VUs
+      - name: "ramp-down"
+        duration: 10s
+        target: 0             # Ramp down to 0 VUs
+    gracefulStop: 10s
+    tags:
+      scenario_type: "ramping"
+    requests:
+      - name: "get_uuid"
+        method: GET
+        url: "{{baseUrl}}/uuid"
+
+  # Scenario 3: Constant Arrival Rate - Fixed iterations per second
+  constant_rate_test:
+    executor: constant-arrival-rate
+    rate: 10                  # 10 iterations per second
+    duration: 30s             # Run for 30 seconds
+    preAllocatedVUs: 5        # Start with 5 VUs
+    maxVUs: 20                # Scale up to max 20 VUs if needed
+    gracefulStop: 10s
+    tags:
+      scenario_type: "arrival-rate"
+    requests:
+      - name: "post_anything"
+        method: POST
+        url: "{{baseUrl}}/anything"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "timestamp": "{{timestamp}}",
+            "iteration": "{{iteration}}",
+            "data": {
+              "environment": "{{environment}}",
+              "test_name": "constant_rate_test"
+            }
+          }
+
+  # Scenario 4: Ramping Arrival Rate - Rate changes over time
+  ramping_rate_test:
+    executor: ramping-arrival-rate
+    preAllocatedVUs: 5
+    maxVUs: 50
+    stages:
+      - name: "warm-up"
+        duration: 10s
+        target: 5             # Ramp to 5 RPS
+      - name: "load-increase"
+        duration: 15s
+        target: 20            # Increase to 20 RPS
+      - name: "peak"
+        duration: 10s
+        target: 30            # Peak at 30 RPS
+      - name: "cool-down"
+        duration: 10s
+        target: 0             # Ramp down to 0 RPS
+    gracefulStop: 10s
+    tags:
+      scenario_type: "ramping-rate"
+    requests:
+      - name: "get_delay"
+        method: GET
+        url: "{{baseUrl}}/delay/0"  # No artificial delay
+        timeout: 5s
+
+# Threshold definitions for pass/fail criteria
+thresholds:
+  # Request duration thresholds
+  http_req_duration:
+    - "p95 < 2s"              # 95th percentile under 2 seconds
+    - "p99 < 5s"              # 99th percentile under 5 seconds
+    - "avg < 1s"              # Average under 1 second
+
+  # Error rate thresholds
+  http_req_failed:
+    - "rate < 0.1"            # Less than 10% errors
+
+  # Request count thresholds
+  http_reqs:
+    - "count > 100"           # At least 100 total requests
+
+# Execution options
+options:
+  # Run scenarios concurrently (default: true)
+  # Set to true to run scenarios in parallel
+  sequential: false
+
+  # Timeout for iterations to complete during graceful stop
+  iterationsTimeout: 30s
+
+---
+# Alternative: Simple single-scenario configuration
+# Useful for quick tests or CI/CD pipelines
+
+# name: "Simple Performance Test"
+# scenarios:
+#   simple_test:
+#     executor: constant-vus
+#     vus: 2
+#     duration: 60s
+#     requests:
+#       - method: GET
+#         url: "https://httpbin.org/get"
+# thresholds:
+#   http_req_duration:
+#     - "p95 < 1s"
+#   http_req_failed:
+#     - "rate < 0.05"

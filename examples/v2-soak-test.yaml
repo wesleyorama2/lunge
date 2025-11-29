@@ -1,0 +1,170 @@
+# v2-soak-test.yaml
+# Soak Test - Extended Duration Stability Test
+#
+# This test runs for an extended period to uncover issues that only
+# appear over time, such as memory leaks, connection exhaustion,
+# or gradual performance degradation.
+#
+# Ideal for:
+#   - Memory leak detection
+#   - Connection pool exhaustion
+#   - Database connection leaks
+#   - Long-term stability validation
+#   - Performance degradation over time
+#
+# Usage:
+#   lunge perf -c examples/v2-soak-test.yaml
+#
+# Note: This is a long-running test (1 hour). Adjust duration as needed.
+# Consider running overnight or over weekends for production validation.
+
+name: "Soak Test"
+description: "Extended duration test to identify stability issues over time"
+
+settings:
+  baseUrl: "${BASE_URL:-https://httpbin.org}"
+  timeout: 30s
+  maxConnectionsPerHost: 100
+  maxIdleConnsPerHost: 100
+  userAgent: "lunge/2.0-soak-test"
+  headers:
+    Accept: "application/json"
+    X-Test-Type: "soak"
+
+# Variables
+variables:
+  test_duration: "1h"
+
+scenarios:
+  soak_test:
+    # Use ramping-vus to have proper warmup and cooldown
+    executor: ramping-vus
+    
+    # Soak test stages - long duration with steady load
+    stages:
+      # Gradual warm-up (5 minutes)
+      - duration: 5m
+        target: 30
+        name: "warm-up"
+      
+      # Long steady-state period (50 minutes)
+      # This is where issues typically manifest
+      - duration: 50m
+        target: 30
+        name: "steady-state"
+      
+      # Cool-down period (5 minutes)
+      - duration: 5m
+        target: 0
+        name: "cool-down"
+    
+    # Extended graceful stop for soak testing
+    gracefulStop: 60s
+    
+    tags:
+      test_type: "soak"
+      category: "stability"
+      duration: "1h"
+    
+    # Pacing to simulate realistic user behavior
+    pacing:
+      type: random
+      min: 500ms
+      max: 2s
+    
+    requests:
+      # Simulate typical user flow
+      
+      # 1. Homepage/dashboard load
+      - name: "Dashboard"
+        method: GET
+        url: "{{baseUrl}}/get"
+        thinkTime: 1s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # 2. API data fetch
+      - name: "Fetch Data"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        thinkTime: 2s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # 3. Submit action
+      - name: "Submit Action"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "action": "soak_test_action",
+            "vu_id": "{{vuId}}",
+            "iteration": "{{iteration}}",
+            "timestamp": "{{timestamp}}"
+          }
+        thinkTime: 3s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # 4. Fetch updated data
+      - name: "Refresh Data"
+        method: GET
+        url: "{{baseUrl}}/get?refresh=true"
+        thinkTime: 1s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # 5. Background sync
+      - name: "Background Sync"
+        method: GET
+        url: "{{baseUrl}}/uuid"
+        thinkTime: 500ms
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+# Soak test thresholds - strict for stability validation
+thresholds:
+  http_req_duration:
+    - "p50 < 300ms"    # Consistent baseline performance
+    - "p95 < 800ms"    # Should remain stable over time
+    - "p99 < 2s"       # No significant degradation
+    - "avg < 400ms"    # Average should stay low
+  
+  http_req_failed:
+    - "rate < 0.005"   # Less than 0.5% errors over long period
+  
+  # High request count expected over 1 hour
+  http_reqs:
+    - "count > 50000"  # Should complete many requests in 1 hour
+
+options:
+  # Extended timeout for soak testing
+  iterationsTimeout: 60s
+  
+  # Don't reuse connections between VUs to stress connection handling
+  # Uncomment below to test connection pool behavior:
+  # noVUConnectionReuse: true
+
+# Note: For production soak tests, consider:
+# 1. Running for 4-24 hours
+# 2. Monitoring system resources externally (CPU, memory, connections)
+# 3. Checking database connection pools
+# 4. Reviewing application logs for warnings
+# 5. Using --output to save results for later analysis

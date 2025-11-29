@@ -1,0 +1,343 @@
+# v2-multi-scenario.yaml
+# Multi-Scenario Test - Complex Load Pattern
+#
+# This test demonstrates running multiple scenarios in parallel
+# to simulate realistic mixed workloads with different user behaviors.
+#
+# Ideal for:
+#   - Simulating production traffic patterns
+#   - Testing multiple user type behaviors
+#   - Complex application workflows
+#   - Realistic system-wide load testing
+#
+# Usage:
+#   lunge perf -c examples/v2-multi-scenario.yaml
+#
+# Scenarios run in parallel by default, simulating:
+#   - Browsing users (read-heavy)
+#   - Active users (mixed read/write)
+#   - API integrations (high-throughput)
+#   - Background jobs (periodic tasks)
+
+name: "Multi-Scenario Load Test"
+description: "Complex load test with multiple user types and behaviors"
+
+settings:
+  baseUrl: "${BASE_URL:-https://httpbin.org}"
+  timeout: 30s
+  maxConnectionsPerHost: 200
+  maxIdleConnsPerHost: 200
+  userAgent: "lunge/2.0-multi-scenario"
+  headers:
+    Accept: "application/json"
+    X-Test-Type: "multi-scenario"
+
+# Global variables shared across scenarios
+variables:
+  environment: "production"
+  api_key: "${API_KEY:-test-api-key}"
+  region: "us-east-1"
+
+scenarios:
+  # ============================================================
+  # Scenario 1: Browsing Users
+  # Simulates users browsing the site, mostly read operations
+  # ============================================================
+  browsing_users:
+    executor: ramping-vus
+    stages:
+      - duration: 2m
+        target: 50
+        name: "ramp-up"
+      - duration: 8m
+        target: 100
+        name: "steady"
+      - duration: 2m
+        target: 0
+        name: "ramp-down"
+    
+    gracefulStop: 15s
+    
+    tags:
+      user_type: "browser"
+      behavior: "read-heavy"
+    
+    # Pacing to simulate real browsing behavior
+    pacing:
+      type: random
+      min: 2s
+      max: 5s
+    
+    requests:
+      - name: "Homepage"
+        method: GET
+        url: "{{baseUrl}}/get"
+        thinkTime: 3s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "Browse Products"
+        method: GET
+        url: "{{baseUrl}}/get?category=products&page=1"
+        thinkTime: 2s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "View Product Details"
+        method: GET
+        url: "{{baseUrl}}/get?product=sample"
+        thinkTime: 4s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+  # ============================================================
+  # Scenario 2: Active Users
+  # Simulates users actively interacting - read and write
+  # ============================================================
+  active_users:
+    executor: constant-vus
+    vus: 20
+    duration: 10m
+    startTime: 1m  # Start after browsing users ramp up
+    
+    gracefulStop: 15s
+    
+    tags:
+      user_type: "active"
+      behavior: "mixed"
+    
+    requests:
+      - name: "Login Check"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        headers:
+          Authorization: "Bearer {{api_key}}"
+        thinkTime: 1s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "Fetch Dashboard"
+        method: GET
+        url: "{{baseUrl}}/get?dashboard=true"
+        thinkTime: 2s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "Submit Form"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "user_action": "form_submit",
+            "data": {
+              "name": "Test User",
+              "email": "test{{iteration}}@example.com"
+            }
+          }
+        thinkTime: 3s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "Update Settings"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "action": "update_settings",
+            "settings": {
+              "notifications": true,
+              "theme": "dark"
+            }
+          }
+        thinkTime: 2s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+  # ============================================================
+  # Scenario 3: API Integration
+  # Simulates external API integrations - high throughput
+  # ============================================================
+  api_integration:
+    executor: constant-arrival-rate
+    rate: 50  # 50 API calls per second
+    duration: 10m
+    preAllocatedVUs: 25
+    maxVUs: 100
+    startTime: 30s  # Start shortly after test begins
+    
+    gracefulStop: 20s
+    
+    tags:
+      user_type: "api"
+      behavior: "high-throughput"
+    
+    requests:
+      - name: "API - List Resources"
+        method: GET
+        url: "{{baseUrl}}/get?api=v1&action=list"
+        headers:
+          X-API-Key: "{{api_key}}"
+        timeout: 5s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+          - type: duration
+            condition: lt
+            value: "500ms"
+
+      - name: "API - Create Resource"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+          X-API-Key: "{{api_key}}"
+        body: |
+          {
+            "api_version": "v1",
+            "resource_type": "item",
+            "data": {
+              "name": "Resource {{iteration}}",
+              "timestamp": "{{timestamp}}"
+            }
+          }
+        timeout: 5s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+  # ============================================================
+  # Scenario 4: Background Jobs
+  # Simulates periodic background processes
+  # ============================================================
+  background_jobs:
+    executor: ramping-arrival-rate
+    preAllocatedVUs: 5
+    maxVUs: 20
+    stages:
+      - duration: 3m
+        target: 5     # Low initial rate
+        name: "startup"
+      - duration: 5m
+        target: 10    # Normal processing
+        name: "normal"
+      - duration: 2m
+        target: 5     # Wind down
+        name: "wind-down"
+    startTime: 2m  # Start after main traffic
+    
+    gracefulStop: 30s
+    
+    tags:
+      user_type: "system"
+      behavior: "background"
+    
+    requests:
+      - name: "Job - Health Check"
+        method: GET
+        url: "{{baseUrl}}/get?job=health"
+        timeout: 10s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "Job - Process Queue"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "job": "process_queue",
+            "batch_size": 100,
+            "timestamp": "{{timestamp}}"
+          }
+        timeout: 30s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      - name: "Job - Cleanup"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "job": "cleanup",
+            "retention_days": 30
+          }
+        timeout: 15s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+# Thresholds for multi-scenario test
+thresholds:
+  # Overall thresholds
+  http_req_duration:
+    - "p95 < 1s"       # 95% of all requests under 1 second
+    - "p99 < 3s"       # 99% under 3 seconds
+  
+  http_req_failed:
+    - "rate < 0.02"    # Less than 2% overall error rate
+  
+  # Should generate significant load
+  http_reqs:
+    - "count > 20000"  # Many requests across all scenarios
+  
+  # Custom scenario-specific thresholds
+  custom:
+    # API integration should be fast
+    api_integration_duration:
+      - "p95 < 500ms"
+    
+    # Background jobs can be slower
+    background_jobs_duration:
+      - "p95 < 5s"
+    
+    # Browsing should feel responsive
+    browsing_users_duration:
+      - "p95 < 800ms"
+
+# Execution options
+options:
+  # Run scenarios in parallel (default)
+  sequential: false
+  
+  # Timeout for iterations
+  iterationsTimeout: 45s

@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func TestPutCommand(t *testing.T) {
@@ -50,15 +53,26 @@ func TestPutCommand(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Set up command arguments and flags
-	putCmd.SetArgs([]string{server.URL})
-	putCmd.Flags().Set("header", "X-Test-Header:test-value")
-	putCmd.Flags().Set("json", `{"name": "Updated Resource", "description": "This resource has been updated"}`)
-	putCmd.Flags().Set("verbose", "false")
-	putCmd.Flags().Set("no-color", "true")
+	// Create a new root command for testing to avoid global state issues
+	rootCmd := &cobra.Command{Use: "lunge"}
+
+	// Reset and re-add the put command
+	putCmd.ResetFlags()
+	putCmd.Flags().StringArrayP("header", "H", []string{}, "HTTP headers to include (can be used multiple times)")
+	putCmd.Flags().StringP("json", "j", "", "JSON data to send in the request body")
+	putCmd.Flags().StringP("file", "f", "", "File containing data to send in the request body")
+	putCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+	putCmd.Flags().Bool("no-color", false, "Disable colored output")
+	putCmd.Flags().DurationP("timeout", "t", 30*time.Second, "Request timeout")
+	putCmd.Flags().String("format", "", "Output format (text, json, yaml, junit)")
+
+	rootCmd.AddCommand(putCmd)
+
+	// Set up command arguments
+	rootCmd.SetArgs([]string{"put", server.URL, "--header", "X-Test-Header:test-value", "--json", `{"name": "Updated Resource", "description": "This resource has been updated"}`, "--verbose=false", "--no-color"})
 
 	// Execute the command
-	err := putCmd.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
 		t.Errorf("Error executing put command: %v", err)
 	}

@@ -1,0 +1,66 @@
+name: "integration-constant-vus"
+description: "Detailed test for constant VUs executor"
+
+settings:
+  baseUrl: "http://localhost:80"
+  timeout: 30s
+  maxConnectionsPerHost: 50
+  userAgent: "lunge/2.0-constant-vus-test"
+  headers:
+    Accept: "application/json"
+
+variables:
+  test_name: "constant-vus-test"
+
+scenarios:
+  constant_vus_detailed:
+    executor: constant-vus
+    vus: 5
+    duration: 15s
+    
+    requests:
+      # Test basic GET request
+      - name: "Basic GET"
+        method: GET
+        url: "{{baseUrl}}/get"
+        headers:
+          X-Test-Header: "constant-vus"
+          X-Request-ID: "{{test_name}}"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test headers endpoint
+      - name: "Headers Check"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test user-agent endpoint
+      - name: "User Agent"
+        method: GET
+        url: "{{baseUrl}}/user-agent"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test UUID generation
+      - name: "UUID Generation"
+        method: GET
+        url: "{{baseUrl}}/uuid"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+thresholds:
+  http_req_duration:
+    - "p95 < 300ms"
+    - "avg < 100ms"
+  http_req_failed:
+    - "rate < 0.01"

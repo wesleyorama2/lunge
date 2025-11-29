@@ -1,0 +1,168 @@
+# v2-spike-test.yaml
+# Spike Test - Sudden Traffic Surge
+#
+# This test simulates sudden traffic spikes to evaluate system resilience.
+# Tests how well the system handles rapid load increases and recovery.
+#
+# Ideal for:
+#   - Testing auto-scaling behavior
+#   - Flash sale / viral content scenarios
+#   - DDoS resilience testing
+#   - System recovery capability
+#
+# Usage:
+#   lunge perf -c examples/v2-spike-test.yaml
+#
+# The pattern: normal -> spike -> normal -> bigger spike -> recovery
+
+name: "Spike Test"
+description: "Test system resilience to sudden traffic spikes"
+
+settings:
+  baseUrl: "${BASE_URL:-https://httpbin.org}"
+  timeout: 30s
+  maxConnectionsPerHost: 500
+  maxIdleConnsPerHost: 500
+  userAgent: "lunge/2.0-spike-test"
+  headers:
+    Accept: "application/json"
+    X-Test-Type: "spike"
+
+scenarios:
+  spike_test:
+    executor: ramping-vus
+    
+    # Spike pattern stages
+    stages:
+      # Establish baseline
+      - duration: 2m
+        target: 20
+        name: "baseline"
+      
+      # First spike - moderate
+      - duration: 10s
+        target: 100
+        name: "spike-1-ramp"
+      
+      # Hold spike
+      - duration: 1m
+        target: 100
+        name: "spike-1-hold"
+      
+      # Return to baseline
+      - duration: 10s
+        target: 20
+        name: "recovery-1"
+      
+      # Stabilize
+      - duration: 2m
+        target: 20
+        name: "stabilize-1"
+      
+      # Second spike - aggressive
+      - duration: 5s
+        target: 200
+        name: "spike-2-ramp"
+      
+      # Hold aggressive spike
+      - duration: 1m
+        target: 200
+        name: "spike-2-hold"
+      
+      # Return to baseline
+      - duration: 10s
+        target: 20
+        name: "recovery-2"
+      
+      # Observe recovery
+      - duration: 2m
+        target: 20
+        name: "recovery-observation"
+      
+      # Third spike - extreme
+      - duration: 3s
+        target: 500
+        name: "spike-3-ramp"
+      
+      # Brief extreme load
+      - duration: 30s
+        target: 500
+        name: "spike-3-hold"
+      
+      # Gradual recovery
+      - duration: 30s
+        target: 50
+        name: "gradual-recovery"
+      
+      # Full recovery
+      - duration: 2m
+        target: 20
+        name: "full-recovery"
+      
+      # Cool down
+      - duration: 1m
+        target: 0
+        name: "cool-down"
+    
+    gracefulStop: 30s
+    
+    tags:
+      test_type: "spike"
+      category: "resilience"
+    
+    requests:
+      # Primary endpoint
+      - name: "Main API"
+        method: GET
+        url: "{{baseUrl}}/get"
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # Secondary endpoint
+      - name: "User Data"
+        method: GET
+        url: "{{baseUrl}}/user-agent"
+        thinkTime: 20ms
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # Write operation
+      - name: "Submit Data"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "spike_test": true,
+            "timestamp": "{{timestamp}}"
+          }
+        thinkTime: 30ms
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+# Spike test thresholds
+# More lenient during spikes, but should recover
+thresholds:
+  http_req_duration:
+    - "p95 < 3s"       # Allow higher latency during spikes
+    - "p99 < 10s"      # Upper bound even during extreme spike
+  
+  http_req_failed:
+    - "rate < 0.15"    # Up to 15% errors during spikes
+  
+  # Ensure significant load was generated
+  http_reqs:
+    - "count > 5000"   # Should complete many requests
+
+options:
+  iterationsTimeout: 60s

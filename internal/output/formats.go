@@ -473,7 +473,6 @@ type JUnitTestCaseData struct {
 }
 
 // FormatRequest formats a request as JUnit XML
-// For JUnit format, we don't output individual requests, just collect data
 func (f *JUnitFormatter) FormatRequest(req *http.Request, baseURL string) string {
 	// Build full URL for storage
 	fullURL := baseURL
@@ -485,32 +484,49 @@ func (f *JUnitFormatter) FormatRequest(req *http.Request, baseURL string) string
 		fullURL += "?" + req.QueryParams.Encode()
 	}
 
-	// Store request data if we have a current test
-	if f.CurrentTest != nil {
-		queryParams := make(map[string]string)
-		for key, values := range req.QueryParams {
-			if len(values) > 0 {
-				queryParams[key] = values[0]
-			}
+	// Initialize current test if not already done
+	if f.CurrentTest == nil {
+		testName := f.TestName
+		if testName == "" {
+			testName = "TestRequest"
 		}
-
-		f.CurrentTest.Request = &RequestData{
-			Method:      req.Method,
-			URL:         fullURL,
-			Headers:     req.Headers,
-			QueryParams: queryParams,
-			Body:        req.Body,
-			Timestamp:   time.Now().Format(time.RFC3339),
+		f.CurrentTest = &JUnitTestCaseData{
+			Name:       testName,
+			StartTime:  time.Now(),
+			Assertions: []AssertionResult{},
 		}
 	}
 
-	// Return empty string as we don't output anything during test execution
-	return ""
+	// Store request data
+	queryParams := make(map[string]string)
+	for key, values := range req.QueryParams {
+		if len(values) > 0 {
+			queryParams[key] = values[0]
+		}
+	}
+
+	f.CurrentTest.Request = &RequestData{
+		Method:      req.Method,
+		URL:         fullURL,
+		Headers:     req.Headers,
+		QueryParams: queryParams,
+		Body:        req.Body,
+		Timestamp:   time.Now().Format(time.RFC3339),
+	}
+
+	// Return XML comment with request info for immediate output
+	return fmt.Sprintf("<!-- Request: %s %s -->", req.Method, fullURL)
 }
 
 // FormatResponse formats a response as JUnit XML
-// For JUnit format, we don't output individual responses, just collect data
 func (f *JUnitFormatter) FormatResponse(resp *http.Response) string {
+	// Initialize test results if not already done
+	if f.TestResults == nil {
+		f.TestResults = &JUnitTestSuites{
+			TestSuites: []JUnitTestSuite{},
+		}
+	}
+
 	// Store response data if we have a current test
 	if f.CurrentTest != nil {
 		headers := make(map[string]string)
@@ -549,8 +565,80 @@ func (f *JUnitFormatter) FormatResponse(resp *http.Response) string {
 		}
 	}
 
-	// Return empty string as we don't output anything during test execution
-	return ""
+	// Create or update test suite with current test
+	testName := f.TestName
+	if testName == "" {
+		testName = "TestRequest"
+	}
+
+	// Find or create test suite
+	var testSuite *JUnitTestSuite
+	suiteName := f.SuiteName
+	if suiteName == "" {
+		suiteName = "TestSuite"
+	}
+
+	// Look for existing test suite
+	for i := range f.TestResults.TestSuites {
+		if f.TestResults.TestSuites[i].Name == suiteName {
+			testSuite = &f.TestResults.TestSuites[i]
+			break
+		}
+	}
+
+	// Create new test suite if not found
+	if testSuite == nil {
+		f.TestResults.TestSuites = append(f.TestResults.TestSuites, JUnitTestSuite{
+			Name:      suiteName,
+			Tests:     0,
+			Failures:  0,
+			Errors:    0,
+			Time:      0,
+			Timestamp: time.Now().Format(time.RFC3339),
+			TestCases: []JUnitTestCase{},
+		})
+		testSuite = &f.TestResults.TestSuites[len(f.TestResults.TestSuites)-1]
+	}
+
+	// Add test case
+	testCase := JUnitTestCase{
+		Name:      testName,
+		Classname: suiteName,
+		Time:      float64(resp.GetResponseTimeMillis()) / 1000.0,
+	}
+
+	// Check if test case already exists (for updating count)
+	found := false
+	for i, tc := range testSuite.TestCases {
+		if tc.Name == testName {
+			testSuite.TestCases[i] = testCase
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		testSuite.TestCases = append(testSuite.TestCases, testCase)
+		testSuite.Tests++
+	}
+
+	// Add timing information to system-out
+	timingInfo := fmt.Sprintf("dnsLookup=\"%.2f\" tcpConnection=\"%.2f\" tlsHandshake=\"%.2f\" timeToFirstByte=\"%.2f\" contentTransfer=\"%.2f\"",
+		float64(resp.GetDNSLookupTimeMillis())/1000.0,
+		float64(resp.GetTCPConnectTimeMillis())/1000.0,
+		float64(resp.GetTLSHandshakeTimeMillis())/1000.0,
+		float64(resp.GetTimeToFirstByteMillis())/1000.0,
+		float64(resp.GetContentTransferTimeMillis())/1000.0)
+
+	testSuite.SystemOut = timingInfo
+
+	// Generate and return XML
+	output, err := xml.MarshalIndent(f.TestResults, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("<!-- Error generating JUnit XML: %s -->", err)
+	}
+
+	return string(output)
 }
 
 // StartTest initializes a new test in the JUnitFormatter

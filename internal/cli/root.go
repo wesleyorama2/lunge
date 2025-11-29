@@ -54,4 +54,5 @@ func init() {
 	RootCmd.AddCommand(deleteCmd)
 	RootCmd.AddCommand(runCmd)
 	RootCmd.AddCommand(testCmd)
+	RootCmd.AddCommand(perfCmd)
 }

@@ -1,0 +1,104 @@
+name: JSONPlaceholder API Test
+baseURL: https://jsonplaceholder.typicode.com
+
+environments:
+  default:
+    userId: "1"
+    postId: "1"
+
+requests:
+  getUsers:
+    method: GET
+    path: /users
+    description: Get all users
+
+  getUser:
+    method: GET
+    path: /users/${userId}
+    description: Get a specific user
+
+  getPosts:
+    method: GET
+    path: /posts
+    description: Get all posts
+
+  getPost:
+    method: GET
+    path: /posts/${postId}
+    description: Get a specific post
+
+  getComments:
+    method: GET
+    path: /posts/${postId}/comments
+    description: Get comments for a post
+
+  createPost:
+    method: POST
+    path: /posts
+    headers:
+      Content-Type: application/json
+    body:
+      title: "Test Post"
+      body: "This is a test post from Lunge"
+      userId: 1
+    description: Create a new post
+
+suites:
+  basic:
+    description: Basic API tests
+    requests:
+      - getUsers
+      - getUser
+      - getPosts
+      - getPost
+      - getComments
+
+  full:
+    description: Full API test including POST
+    requests:
+      - getUsers
+      - getUser
+      - getPosts
+      - createPost
+      - getComments
+
+tests:
+  userTest:
+    description: Test user endpoint
+    request: getUser
+    assertions:
+      - type: status
+        value: 200
+      - type: path.exists
+        path: $.id
+      - type: path.exists
+        path: $.name
+      - type: path.exists
+        path: $.email
+      - type: path.equals
+        path: $.id
+        value: 1
+
+  postsTest:
+    description: Test posts endpoint
+    request: getPosts
+    assertions:
+      - type: status
+        value: 200
+      - type: path.isArray
+        path: $
+      - type: path.minLength
+        path: $
+        value: 10
+
+  createPostTest:
+    description: Test creating a post
+    request: createPost
+    assertions:
+      - type: status
+        value: 201
+      - type: path.exists
+        path: $.id
+      - type: path.equals
+        path: $.title
+        value: "Test Post"

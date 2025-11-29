@@ -1,0 +1,117 @@
+name: "httpbin-integration-test"
+description: "Comprehensive integration test using httpbin"
+
+settings:
+  baseUrl: "http://localhost:80"
+  timeout: 30s
+  maxConnectionsPerHost: 100
+  userAgent: "lunge/2.0-integration-test"
+  headers:
+    Accept: "application/json"
+    X-Test-Type: "integration"
+
+variables:
+  test_var: "integration-test"
+
+scenarios:
+  # Test 1: Constant VUs with GET
+  constant_vus_get:
+    executor: constant-vus
+    vus: 5
+    duration: 10s
+    
+    requests:
+      - name: "GET Request"
+        method: GET
+        url: "{{baseUrl}}/get"
+        headers:
+          X-Test-Header: "test-value"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      - name: "Headers Check"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+  # Test 2: Ramping VUs with POST
+  ramping_vus_post:
+    executor: ramping-vus
+    stages:
+      - duration: 5s
+        target: 2
+      - duration: 10s
+        target: 5
+      - duration: 5s
+        target: 0
+    
+    requests:
+      - name: "POST Request"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: '{"test": "data", "var": "{{test_var}}"}'
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+  # Test 3: Constant Arrival Rate
+  constant_rate_mixed:
+    executor: constant-arrival-rate
+    rate: 10
+    duration: 15s
+    preAllocatedVUs: 3
+    maxVUs: 10
+    
+    requests:
+      - name: "Delay Endpoint"
+        method: GET
+        url: "{{baseUrl}}/delay/0"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      - name: "Status 200"
+        method: GET
+        url: "{{baseUrl}}/status/200"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+  # Test 4: Ramping Arrival Rate
+  ramping_rate_test:
+    executor: ramping-arrival-rate
+    preAllocatedVUs: 2
+    maxVUs: 10
+    stages:
+      - duration: 5s
+        target: 5
+      - duration: 10s
+        target: 20
+      - duration: 5s
+        target: 5
+    
+    requests:
+      - name: "GET Ramping"
+        method: GET
+        url: "{{baseUrl}}/get"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+thresholds:
+  http_req_duration:
+    - "p95 < 500ms"
+    - "avg < 200ms"
+  http_req_failed:
+    - "rate < 0.05"

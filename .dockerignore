@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+doc/
+README.md
+LICENSE
+ARCHITECTURE.md
+
+# Kiro specs
+.kiro/
+
+# Build artifacts
+lunge
+*.exe
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile
+.dockerignore

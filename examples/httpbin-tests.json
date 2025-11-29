@@ -1,0 +1,86 @@
+{
+  "environments": {
+    "local": {
+      "baseUrl": "http://localhost",
+      "variables": {
+        "expectedValue": "test123"
+      }
+    }
+  },
+  "requests": {
+    "getJson": {
+      "url": "/json",
+      "method": "GET"
+    },
+    "getUuid": {
+      "url": "/uuid",
+      "method": "GET"
+    },
+    "postData": {
+      "url": "/post",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "testField": "{{expectedValue}}",
+        "number": 42,
+        "nested": {
+          "key": "value"
+        }
+      }
+    },
+    "getHeaders": {
+      "url": "/headers",
+      "method": "GET",
+      "headers": {
+        "X-Test": "header-value"
+      }
+    }
+  },
+  "suites": {
+    "validationTests": {
+      "requests": ["getJson", "getUuid", "postData", "getHeaders"],
+      "tests": [
+        {
+          "name": "JSON endpoint returns valid structure",
+          "request": "getJson",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.slideshow", "exists": true },
+            { "path": "$.slideshow.title", "exists": true }
+          ]
+        },
+        {
+          "name": "UUID endpoint returns valid UUID",
+          "request": "getUuid",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.uuid", "exists": true },
+            { "path": "$.uuid", "matches": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" }
+          ]
+        },
+        {
+          "name": "POST echoes back JSON data",
+          "request": "postData",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.json", "exists": true },
+            { "path": "$.json.testField", "exists": true },
+            { "path": "$.json.number", "equals": 42 },
+            { "path": "$.json.nested.key", "equals": "value" }
+          ]
+        },
+        {
+          "name": "Headers are properly sent",
+          "request": "getHeaders",
+          "assertions": [
+            { "status": 200 },
+            { "path": "$.headers", "exists": true },
+            { "path": "$.headers.X-Test", "equals": "header-value" }
+          ]
+        }
+      ]
+    }
+  }
+}

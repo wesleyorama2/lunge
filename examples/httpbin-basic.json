@@ -1,0 +1,82 @@
+{
+  "environments": {
+    "local": {
+      "baseUrl": "http://localhost",
+      "variables": {
+        "testValue": "hello",
+        "userId": "123"
+      }
+    }
+  },
+  "requests": {
+    "getRequest": {
+      "url": "/get",
+      "method": "GET",
+      "headers": {
+        "X-Test-Header": "test-value"
+      },
+      "queryParams": {
+        "param1": "{{testValue}}",
+        "param2": "world"
+      }
+    },
+    "postJson": {
+      "url": "/post",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Test User",
+        "value": "{{testValue}}",
+        "userId": "{{userId}}"
+      }
+    },
+    "putRequest": {
+      "url": "/put",
+      "method": "PUT",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "updated": true,
+        "timestamp": "2025-11-13"
+      }
+    },
+    "deleteRequest": {
+      "url": "/delete",
+      "method": "DELETE",
+      "headers": {
+        "X-Delete-Reason": "testing"
+      }
+    },
+    "getStatus200": {
+      "url": "/status/200",
+      "method": "GET"
+    },
+    "getStatus404": {
+      "url": "/status/404",
+      "method": "GET"
+    },
+    "getDelay": {
+      "url": "/delay/1",
+      "method": "GET"
+    },
+    "getHeaders": {
+      "url": "/headers",
+      "method": "GET",
+      "headers": {
+        "X-Custom-Header": "custom-value",
+        "User-Agent": "Lunge-Test/1.0"
+      }
+    }
+  },
+  "suites": {
+    "basicCrud": {
+      "requests": ["getRequest", "postJson", "putRequest", "deleteRequest"]
+    },
+    "statusCodes": {
+      "requests": ["getStatus200", "getStatus404"]
+    }
+  }
+}

@@ -1,0 +1,147 @@
+name: Performance Regression Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  regression-tests:
+    name: Performance Regression Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: Download dependencies
+      run: go mod download
+      
+    - name: Check for baseline
+      id: check-baseline
+      run: |
+        if [ -f "benchmark_baseline.json" ]; then
+          echo "baseline_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "baseline_exists=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Run efficiency regression tests
+      run: |
+        echo "Running efficiency regression tests..."
+        go test -v -run=TestRegressionEfficiency ./internal/performance/
+        
+    - name: Run performance benchmarks
+      run: |
+        echo "Running performance benchmarks..."
+        go test -bench=BenchmarkRegression -benchmem -benchtime=5s ./internal/performance/ | tee benchmark_results.txt
+        
+    - name: Check for regressions
+      run: |
+        if grep -q "REGRESSION" benchmark_results.txt; then
+          echo "❌ REGRESSION DETECTED"
+          grep "REGRESSION" benchmark_results.txt
+          exit 1
+        fi
+        echo "✓ No regressions detected"
+        
+    - name: Check for warnings
+      run: |
+        if grep -q "WARNING" benchmark_results.txt; then
+          echo "⚠️ Performance warnings detected:"
+          grep "WARNING" benchmark_results.txt
+        fi
+        
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: benchmark-results
+        path: benchmark_results.txt
+        
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const results = fs.readFileSync('benchmark_results.txt', 'utf8');
+          
+          // Extract key metrics
+          const efficiencyMatches = results.match(/Efficiency: ([\d.]+)%/g) || [];
+          const regressions = results.match(/REGRESSION:.*/g) || [];
+          
+          let comment = '## Performance Regression Test Results\n\n';
+          
+          if (regressions.length > 0) {
+            comment += '### ❌ Regressions Detected\n\n';
+            regressions.forEach(r => comment += `- ${r}\n`);
+            comment += '\n';
+          } else {
+            comment += '### ✅ No Regressions Detected\n\n';
+          }
+          
+          if (efficiencyMatches.length > 0) {
+            comment += '### Efficiency Metrics\n\n';
+            efficiencyMatches.forEach(m => comment += `- ${m}\n`);
+          }
+          
+          comment += '\n<details><summary>Full Results</summary>\n\n```\n' + results + '\n```\n</details>';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+          
+    - name: Fail on regression
+      run: |
+        if grep -q "REGRESSION" benchmark_results.txt; then
+          echo "Build failed due to performance regression"
+          exit 1
+        fi
+
+  baseline-update:
+    name: Update Baseline (Manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Create new baseline
+      run: |
+        echo "Creating new performance baseline..."
+        go test -run=TestCreateBaseline -v ./internal/performance/
+        
+    - name: Commit baseline
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add benchmark_baseline.json
+        git commit -m "Update performance baseline [skip ci]" || echo "No changes to commit"
+        git push

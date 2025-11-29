@@ -13,12 +13,14 @@ lunge
 *.out
 *.prof
 coverage.html
+coverage.out
 
 # Dependency directories
 vendor/
 
 # Go workspace file
 go.work
+go.work.sum
 
 # IDE specific files
 .idea/
@@ -36,9 +38,6 @@ go.work
 ehthumbs.db
 Thumbs.db
 
-# Project specific files
-# Add any project-specific files that should be ignored
-
 # Debug files
 debug
 
@@ -55,3 +54,14 @@ build/
 
 # Log files
 *.log
+
+# Performance test reports (generated)
+stress-*.html
+integration-*.html
+realistic-*.html
+*-report.html
+
+# CPU/Memory profiles
+*.pprof
+cpu.prof
+mem.prof

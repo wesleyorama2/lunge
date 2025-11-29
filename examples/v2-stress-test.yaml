@@ -1,0 +1,152 @@
+# v2-stress-test.yaml
+# Stress Test - Ramping VUs to Find Breaking Point
+#
+# This test progressively increases load to identify the system's breaking point.
+# The VU count ramps up in stages, with hold periods to observe system behavior.
+#
+# Ideal for:
+#   - Finding the maximum capacity of a system
+#   - Identifying performance degradation thresholds
+#   - Capacity planning and scaling decisions
+#
+# Usage:
+#   lunge perf -c examples/v2-stress-test.yaml
+#
+# Or with CLI (simplified):
+#   lunge perf --url https://api.example.com/health \
+#     --executor ramping-vus \
+#     --stages "2m:50,5m:50,2m:100,5m:100,2m:200,5m:200,2m:0"
+
+name: "Stress Test"
+description: "Find the system's breaking point by gradually increasing load"
+
+settings:
+  # Target API - override via environment variable
+  baseUrl: "${BASE_URL:-https://httpbin.org}"
+  timeout: 30s
+  maxConnectionsPerHost: 250
+  maxIdleConnsPerHost: 250
+  userAgent: "lunge/2.0-stress-test"
+  headers:
+    Accept: "application/json"
+    X-Test-Type: "stress"
+
+scenarios:
+  stress:
+    # ramping-vus: VU count changes through defined stages
+    executor: ramping-vus
+    
+    # Stages define VU count over time
+    # Pattern: ramp-up -> hold -> increase -> hold -> ...
+    stages:
+      # Stage 1: Warm-up - gentle ramp to baseline
+      - duration: 2m
+        target: 50
+        name: "warm-up"
+      
+      # Stage 2: Baseline hold - establish performance baseline
+      - duration: 5m
+        target: 50
+        name: "baseline"
+      
+      # Stage 3: First stress level
+      - duration: 2m
+        target: 100
+        name: "stress-1"
+      
+      # Stage 4: Hold at first stress level
+      - duration: 5m
+        target: 100
+        name: "hold-1"
+      
+      # Stage 5: Second stress level
+      - duration: 2m
+        target: 200
+        name: "stress-2"
+      
+      # Stage 6: Hold at second stress level
+      - duration: 5m
+        target: 200
+        name: "hold-2"
+      
+      # Stage 7: Third stress level (aggressive)
+      - duration: 2m
+        target: 300
+        name: "stress-3"
+      
+      # Stage 8: Hold at peak stress
+      - duration: 5m
+        target: 300
+        name: "peak"
+      
+      # Stage 9: Cool-down - observe recovery
+      - duration: 3m
+        target: 0
+        name: "cool-down"
+    
+    # Extended graceful stop for high load
+    gracefulStop: 30s
+    
+    # Tags for analysis
+    tags:
+      test_type: "stress"
+      category: "capacity"
+    
+    # Requests - keep simple for stress testing
+    requests:
+      # Primary endpoint under stress
+      - name: "Health Check"
+        method: GET
+        url: "{{baseUrl}}/get"
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # Secondary endpoint to mix traffic
+      - name: "API Endpoint"
+        method: GET
+        url: "{{baseUrl}}/headers"
+        thinkTime: 50ms
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+      # POST request to include write operations
+      - name: "Post Data"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "timestamp": "{{timestamp}}",
+            "vu": "{{vuId}}",
+            "iteration": "{{iteration}}"
+          }
+        thinkTime: 100ms
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+# Stress test thresholds - more lenient during stress
+thresholds:
+  http_req_duration:
+    - "p95 < 2s"       # Allow higher latency during stress
+    - "p99 < 5s"       # 99th percentile upper bound
+  
+  http_req_failed:
+    - "rate < 0.10"    # Up to 10% errors acceptable during stress
+  
+  # Ensure we're generating enough load
+  http_reqs:
+    - "count > 10000"  # Should complete many requests in 30+ minutes
+
+options:
+  # Allow longer iterations during high load
+  iterationsTimeout: 60s

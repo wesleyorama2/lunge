@@ -1,8 +1,69 @@
 package config
 
 import (
+	"strings"
 	"testing"
 )
+
+// TestValidationError_Error tests the ValidationError.Error() method
+func TestValidationError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      ValidationError
+		expected string
+	}{
+		{
+			name: "standard error",
+			err: ValidationError{
+				Path:    "environments.dev.baseUrl",
+				Message: "baseUrl is required",
+			},
+			expected: "environments.dev.baseUrl: baseUrl is required",
+		},
+		{
+			name: "empty path",
+			err: ValidationError{
+				Path:    "",
+				Message: "some error",
+			},
+			expected: ": some error",
+		},
+		{
+			name: "empty message",
+			err: ValidationError{
+				Path:    "some.path",
+				Message: "",
+			},
+			expected: "some.path: ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.err.Error()
+			if result != tt.expected {
+				t.Errorf("Expected '%s' but got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestValidationError_AsError tests that ValidationError implements the error interface
+func TestValidationError_AsError(t *testing.T) {
+	var err error = ValidationError{
+		Path:    "test.path",
+		Message: "test message",
+	}
+
+	// Verify that it implements the error interface
+	errorStr := err.Error()
+	if !strings.Contains(errorStr, "test.path") {
+		t.Errorf("Expected error string to contain 'test.path', got '%s'", errorStr)
+	}
+	if !strings.Contains(errorStr, "test message") {
+		t.Errorf("Expected error string to contain 'test message', got '%s'", errorStr)
+	}
+}
 
 func TestValidateConfig(t *testing.T) {
 	tests := []struct {

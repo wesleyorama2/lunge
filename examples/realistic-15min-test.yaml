@@ -1,0 +1,45 @@
+name: "realistic-15min-load-test"
+description: "15-minute realistic load test with ramp up, hold, and ramp down"
+
+settings:
+  baseUrl: "http://localhost:80"
+  timeout: 30s
+  maxConnectionsPerHost: 200
+  maxIdleConnsPerHost: 200
+  userAgent: "lunge/2.0-realistic-test"
+  headers:
+    Accept: "application/json"
+
+scenarios:
+  ramping_load_test:
+    executor: ramping-arrival-rate
+    preAllocatedVUs: 50
+    maxVUs: 200
+    stages:
+      # Stage 0: Start at 1 RPS (brief initial stage to establish starting point)
+      - duration: 1s
+        target: 1
+      # Phase 1: Ramp from 1 to 1000 RPS over ~5 minutes (minus the 1s initial stage)
+      - duration: 4m59s
+        target: 1000
+      # Phase 2: Hold at 1000 RPS for 5 minutes
+      - duration: 5m
+        target: 1000
+      # Phase 3: Ramp down from 1000 to 1 RPS over 5 minutes
+      - duration: 5m
+        target: 1
+    
+    requests:
+      - name: "GET Request"
+        method: GET
+        url: "{{baseUrl}}/get"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+thresholds:
+  http_req_duration:
+    - "p95 < 1000ms"
+  http_req_failed:
+    - "rate < 0.05"

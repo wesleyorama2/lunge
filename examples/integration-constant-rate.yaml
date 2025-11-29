@@ -1,0 +1,76 @@
+name: "integration-constant-arrival-rate"
+description: "Detailed test for constant arrival rate executor"
+
+settings:
+  baseUrl: "http://localhost:80"
+  timeout: 30s
+  maxConnectionsPerHost: 50
+  userAgent: "lunge/2.0-constant-rate-test"
+  headers:
+    Accept: "application/json"
+
+variables:
+  test_name: "constant-rate-test"
+
+scenarios:
+  constant_rate_detailed:
+    executor: constant-arrival-rate
+    rate: 15
+    duration: 20s
+    preAllocatedVUs: 5
+    maxVUs: 15
+    
+    requests:
+      # Test simple GET
+      - name: "Simple GET"
+        method: GET
+        url: "{{baseUrl}}/get"
+        headers:
+          X-Rate-Test: "constant"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test with minimal delay
+      - name: "Delay Endpoint"
+        method: GET
+        url: "{{baseUrl}}/delay/0"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test various status codes
+      - name: "Status 200"
+        method: GET
+        url: "{{baseUrl}}/status/200"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test response format
+      - name: "JSON Response"
+        method: GET
+        url: "{{baseUrl}}/json"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test IP endpoint
+      - name: "IP Endpoint"
+        method: GET
+        url: "{{baseUrl}}/ip"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+thresholds:
+  http_req_duration:
+    - "p95 < 350ms"
+    - "avg < 120ms"
+  http_req_failed:
+    - "rate < 0.01"

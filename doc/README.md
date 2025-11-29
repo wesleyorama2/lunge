@@ -9,6 +9,8 @@ Welcome to the documentation for Lunge, a powerful terminal-based HTTP client th
 - [Configuration](./Configuration.md) - Configuration file format and options
 - [Variables](./Variables.md) - Working with environment variables and extraction
 - [Testing](./Testing.md) - Running tests and assertions
+- [Performance Testing](./Performance-Testing.md) - Load testing and performance analysis
+- [Rate Limiting](./Rate-Limiting.md) - Rate limiting algorithm and efficiency
 - [JSON Schema Validation](./JSON-Schema-Validation.md) - Validating responses against schemas
 - [Examples](./Examples.md) - Common usage examples
 

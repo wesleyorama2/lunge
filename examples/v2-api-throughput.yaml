@@ -1,0 +1,130 @@
+# v2-api-throughput.yaml
+# API Throughput Test - Constant Arrival Rate
+#
+# This test maintains a constant request rate (RPS) to validate API throughput.
+# VUs scale automatically to maintain the target rate.
+#
+# Ideal for:
+#   - SLA validation (e.g., "API must handle 1000 RPS")
+#   - API throughput measurement
+#   - Performance verification before deployment
+#
+# Usage:
+#   lunge perf -c examples/v2-api-throughput.yaml
+#
+# Or with CLI:
+#   lunge perf --url https://api.example.com/health \
+#     --executor constant-arrival-rate \
+#     --rate 100 --duration 5m \
+#     --pre-allocated-vus 50 --max-vus 200
+
+name: "API Throughput Test"
+description: "Validate API can handle target request rate (RPS)"
+
+settings:
+  baseUrl: "${BASE_URL:-https://httpbin.org}"
+  timeout: 10s
+  maxConnectionsPerHost: 300
+  maxIdleConnsPerHost: 300
+  userAgent: "lunge/2.0-api-throughput"
+  headers:
+    Accept: "application/json"
+    X-Test-Type: "throughput"
+
+# Variables for the test
+variables:
+  target_rps: "100"
+  api_version: "v1"
+
+scenarios:
+  throughput_test:
+    # constant-arrival-rate: maintains fixed iterations per second
+    # VUs scale automatically to achieve the target rate
+    executor: constant-arrival-rate
+    
+    # Target iterations per second
+    # Each iteration executes all requests in sequence
+    rate: 100
+    
+    # Test duration
+    duration: 5m
+    
+    # Initial VU pool size
+    # Should be enough to handle rate with average response time
+    # Formula: preAllocatedVUs >= rate * avg_response_time_seconds
+    preAllocatedVUs: 50
+    
+    # Maximum VUs to scale up to if needed
+    # System will auto-scale up to this limit if VUs can't keep up
+    maxVUs: 200
+    
+    # Grace period for iterations to complete
+    gracefulStop: 30s
+    
+    # Tags for metric filtering
+    tags:
+      test_type: "throughput"
+      target_rps: "100"
+    
+    requests:
+      # Simple GET - primary throughput endpoint
+      - name: "API Health"
+        method: GET
+        url: "{{baseUrl}}/get"
+        timeout: 5s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+          - type: duration
+            condition: lt
+            value: "1s"
+        
+        # Extract data for validation
+        extract:
+          - name: "response_origin"
+            source: body
+            path: "$.origin"
+
+      # POST request - simulate API write
+      - name: "API Post"
+        method: POST
+        url: "{{baseUrl}}/post"
+        headers:
+          Content-Type: "application/json"
+        body: |
+          {
+            "action": "throughput_test",
+            "timestamp": "{{timestamp}}",
+            "sequence": "{{iteration}}"
+          }
+        timeout: 5s
+        
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+# Strict thresholds for API throughput testing
+thresholds:
+  # Latency thresholds - critical for API SLAs
+  http_req_duration:
+    - "p50 < 200ms"    # 50% under 200ms
+    - "p90 < 400ms"    # 90% under 400ms
+    - "p95 < 500ms"    # 95% under 500ms (typical SLA)
+    - "p99 < 1s"       # 99% under 1 second
+    - "max < 5s"       # No request over 5 seconds
+  
+  # Error rate - very strict for production APIs
+  http_req_failed:
+    - "rate < 0.01"    # Less than 1% errors (99% success rate)
+  
+  # Throughput verification - must meet target RPS
+  http_reqs:
+    - "rate > 80"      # At least 80% of target rate achieved
+    - "count > 24000"  # 100 RPS * 60s * 5m * 0.8 = 24000 minimum
+
+options:
+  # Shorter timeout for throughput testing
+  iterationsTimeout: 15s

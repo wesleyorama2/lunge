@@ -110,11 +110,11 @@ func TestFormatResponseWithTiming(t *testing.T) {
 
 	// Check that timing information is included in JUnit output
 	expectedJUnitParts := []string{
-		`dnsLookup="0.01"`,
-		`tcpConnection="0.02"`,
-		`tlsHandshake="0.03"`,
-		`timeToFirstByte="0.04"`,
-		`contentTransfer="0.05"`,
+		`dnsLookup=&#34;0.01&#34;`,
+		`tcpConnection=&#34;0.02&#34;`,
+		`tlsHandshake=&#34;0.03&#34;`,
+		`timeToFirstByte=&#34;0.04&#34;`,
+		`contentTransfer=&#34;0.05&#34;`,
 	}
 
 	for _, part := range expectedJUnitParts {

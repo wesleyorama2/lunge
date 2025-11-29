@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func TestDeleteCommand(t *testing.T) {
@@ -25,14 +28,24 @@ func TestDeleteCommand(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Set up command arguments and flags
-	deleteCmd.SetArgs([]string{server.URL})
-	deleteCmd.Flags().Set("header", "X-Test-Header:test-value")
-	deleteCmd.Flags().Set("verbose", "false")
-	deleteCmd.Flags().Set("no-color", "true")
+	// Create a new root command for testing to avoid global state issues
+	rootCmd := &cobra.Command{Use: "lunge"}
+
+	// Reset and re-add the delete command
+	deleteCmd.ResetFlags()
+	deleteCmd.Flags().StringArrayP("header", "H", []string{}, "HTTP headers to include (can be used multiple times)")
+	deleteCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+	deleteCmd.Flags().Bool("no-color", false, "Disable colored output")
+	deleteCmd.Flags().DurationP("timeout", "t", 30*time.Second, "Request timeout")
+	deleteCmd.Flags().String("format", "", "Output format (text, json, yaml, junit)")
+
+	rootCmd.AddCommand(deleteCmd)
+
+	// Set up command arguments
+	rootCmd.SetArgs([]string{"delete", server.URL, "--header", "X-Test-Header:test-value", "--verbose=false", "--no-color"})
 
 	// Execute the command
-	err := deleteCmd.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
 		t.Errorf("Error executing delete command: %v", err)
 	}

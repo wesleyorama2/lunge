@@ -1,0 +1,82 @@
+name: "integration-ramping-arrival-rate"
+description: "Detailed test for ramping arrival rate executor"
+
+settings:
+  baseUrl: "http://localhost:80"
+  timeout: 30s
+  maxConnectionsPerHost: 100
+  userAgent: "lunge/2.0-ramping-rate-test"
+  headers:
+    Accept: "application/json"
+
+variables:
+  test_name: "ramping-rate-test"
+
+scenarios:
+  ramping_rate_detailed:
+    executor: ramping-arrival-rate
+    preAllocatedVUs: 3
+    maxVUs: 20
+    stages:
+      # Warm-up phase: low rate
+      - duration: 5s
+        target: 5
+      # Ramp up to medium rate
+      - duration: 8s
+        target: 15
+      # Peak rate phase
+      - duration: 10s
+        target: 25
+      # Sustained medium rate
+      - duration: 7s
+        target: 10
+      # Ramp down phase
+      - duration: 5s
+        target: 2
+    
+    requests:
+      # Test GET with query parameters
+      - name: "GET with Query"
+        method: GET
+        url: "{{baseUrl}}/get?test={{test_name}}&executor=ramping-rate"
+        headers:
+          Accept: "application/json"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test anything endpoint with GET
+      - name: "Anything Endpoint"
+        method: GET
+        url: "{{baseUrl}}/anything"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test bytes endpoint
+      - name: "Bytes Endpoint"
+        method: GET
+        url: "{{baseUrl}}/bytes/100"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+      
+      # Test drip endpoint (streaming)
+      - name: "Drip Endpoint"
+        method: GET
+        url: "{{baseUrl}}/drip?numbytes=5&duration=0&delay=0"
+        assertions:
+          - type: status
+            condition: eq
+            value: "200"
+
+thresholds:
+  http_req_duration:
+    - "p95 < 500ms"
+    - "p99 < 800ms"
+    - "avg < 200ms"
+  http_req_failed:
+    - "rate < 0.03"
