@@ -46,12 +46,12 @@ jobs:
     - name: Run efficiency regression tests
       run: |
         echo "Running efficiency regression tests..."
-        go test -v -run=TestRegressionEfficiency ./internal/performance/
+        go test -v ./internal/performance/v2/...
         
     - name: Run performance benchmarks
       run: |
         echo "Running performance benchmarks..."
-        go test -bench=BenchmarkRegression -benchmem -benchtime=5s ./internal/performance/ | tee benchmark_results.txt
+        go test -bench=. -benchmem -benchtime=5s ./internal/performance/v2/... | tee benchmark_results.txt
         
     - name: Check for regressions
       run: |
@@ -136,7 +136,7 @@ jobs:
     - name: Create new baseline
       run: |
         echo "Creating new performance baseline..."
-        go test -run=TestCreateBaseline -v ./internal/performance/
+        go test -v ./internal/performance/v2/...
         
     - name: Commit baseline
       run: |
