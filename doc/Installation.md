@@ -46,7 +46,7 @@ mv lunge ~/bin/
 
 ### Using Pre-built Binaries
 
-1. Download the appropriate binary for your platform from the [releases page](https://github.com/yourusername/lunge/releases).
+1. Download the appropriate binary for your platform from the [releases page](https://github.com/wesleyorama2/lunge/releases).
 
 2. Extract the archive:
 

@@ -10,17 +10,26 @@ import (
 	"time"
 )
 
-// Client represents an HTTP client with customizable options
+// Client represents an HTTP client with customizable options.
+// Client is safe for concurrent use by multiple goroutines.
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	headers    map[string]string
 }
 
-// ClientOption is a function that configures a Client
+// ClientOption is a function that configures a Client.
 type ClientOption func(*Client)
 
-// NewClient creates a new HTTP client with the given options
+// NewClient creates a new HTTP client with the given options.
+//
+// Example:
+//
+//	client := http.NewClient(
+//	    http.WithBaseURL("https://api.example.com"),
+//	    http.WithTimeout(30*time.Second),
+//	    http.WithHeader("Authorization", "Bearer token"),
+//	)
 func NewClient(options ...ClientOption) *Client {
 	client := &Client{
 		httpClient: &http.Client{
@@ -37,28 +46,63 @@ func NewClient(options ...ClientOption) *Client {
 	return client
 }
 
-// WithBaseURL sets the base URL for the client
+// WithBaseURL sets the base URL for all requests made by this client.
+// The base URL is prepended to the path specified in each Request.
 func WithBaseURL(baseURL string) ClientOption {
 	return func(c *Client) {
 		c.baseURL = baseURL
 	}
 }
 
-// WithTimeout sets the timeout for the client
+// WithTimeout sets the timeout for all requests made by this client.
+// The default timeout is 30 seconds.
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *Client) {
 		c.httpClient.Timeout = timeout
 	}
 }
 
-// WithHeader adds a header to the client
+// WithHeader adds a default header to all requests made by this client.
+// Headers set on individual requests will override these defaults.
 func WithHeader(key, value string) ClientOption {
 	return func(c *Client) {
 		c.headers[key] = value
 	}
 }
 
-// Do executes an HTTP request and returns the response with detailed timing information
+// WithHTTPClient sets a custom *http.Client for this client.
+// Use this for advanced configuration like custom transports or TLS settings.
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		c.httpClient = httpClient
+	}
+}
+
+// WithInsecureSkipVerify disables TLS certificate verification.
+// WARNING: This should only be used for testing purposes.
+func WithInsecureSkipVerify() ClientOption {
+	return func(c *Client) {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		c.httpClient.Transport = transport
+	}
+}
+
+// Do executes an HTTP request and returns the response with detailed timing information.
+// The request is built with the client's base URL and headers, and the provided Request
+// configuration is applied on top.
+//
+// Example:
+//
+//	req := http.NewRequest("GET", "/users").
+//	    WithQueryParam("limit", "10")
+//
+//	resp, err := client.Do(context.Background(), req)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Status: %d, TTFB: %v\n", resp.StatusCode, resp.Timing.TimeToFirstByte)
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	// Build the HTTP request
 	httpReq, err := req.Build(c.baseURL)
@@ -66,9 +110,11 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// Add client headers
+	// Add client headers (request headers can override these)
 	for key, value := range c.headers {
-		httpReq.Header.Set(key, value)
+		if httpReq.Header.Get(key) == "" {
+			httpReq.Header.Set(key, value)
+		}
 	}
 
 	// Initialize timing info
@@ -164,4 +210,29 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	return resp, nil
+}
+
+// Get is a convenience method for making GET requests.
+func (c *Client) Get(ctx context.Context, path string) (*Response, error) {
+	return c.Do(ctx, NewRequest("GET", path))
+}
+
+// Post is a convenience method for making POST requests with a body.
+func (c *Client) Post(ctx context.Context, path string, body interface{}) (*Response, error) {
+	return c.Do(ctx, NewRequest("POST", path).WithBody(body))
+}
+
+// Put is a convenience method for making PUT requests with a body.
+func (c *Client) Put(ctx context.Context, path string, body interface{}) (*Response, error) {
+	return c.Do(ctx, NewRequest("PUT", path).WithBody(body))
+}
+
+// Delete is a convenience method for making DELETE requests.
+func (c *Client) Delete(ctx context.Context, path string) (*Response, error) {
+	return c.Do(ctx, NewRequest("DELETE", path))
+}
+
+// Patch is a convenience method for making PATCH requests with a body.
+func (c *Client) Patch(ctx context.Context, path string, body interface{}) (*Response, error) {
+	return c.Do(ctx, NewRequest("PATCH", path).WithBody(body))
 }

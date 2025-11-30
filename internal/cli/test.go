@@ -290,7 +290,8 @@ func runTest(index int, test config.Test, cfg *config.Config, env config.Environ
 
 // runTestWithContext runs a single test with the given context and output options
 // This function is more testable because it accepts a context and allows disabling output
-func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, noColor bool, printOutput bool) TestResults {
+func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *config.Config, env config.Environment, envVars map[string]string, baseClient *http.Client, formatter output.FormatProvider, timeout time.Duration, noColor bool, printOutput bool) TestResults {
+	_ = baseClient // unused - we create a new client with the baseURL
 	// Determine the format type
 	isJSONFormat := false
 	isYAMLFormat := false
@@ -422,14 +423,14 @@ func runTestWithContext(ctx context.Context, index int, test config.Test, cfg *c
 		defer cancel()
 	}
 
-	// Update client with baseURL
-	client = http.NewClient(
+	// Create a new client with baseURL
+	reqClient := http.NewClient(
 		http.WithTimeout(timeout),
 		http.WithBaseURL(baseURL),
 	)
 
 	startTime := time.Now()
-	resp, err := client.Do(ctx, req)
+	resp, err := reqClient.Do(ctx, req)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
 		return TestResults{passed: false}

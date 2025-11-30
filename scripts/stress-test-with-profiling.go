@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Stress test runner with built-in profiling support
 // This program runs the atomic collector stress test with memory and goroutine monitoring
 package main

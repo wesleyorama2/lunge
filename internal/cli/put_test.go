@@ -2,7 +2,7 @@ package cli
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -30,7 +30,7 @@ func TestPutCommand(t *testing.T) {
 		}
 
 		// Read and verify the request body
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("Error reading request body: %v", err)
 		}

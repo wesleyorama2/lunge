@@ -702,7 +702,7 @@ func TestConstantVUs_ContextTimeout(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	err = e.Run(ctx, scheduler, metricsEngine)
+	_ = e.Run(ctx, scheduler, metricsEngine)
 	elapsed := time.Since(start)
 
 	// Should complete due to context timeout

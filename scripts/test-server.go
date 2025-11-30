@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Simple HTTP test server for local performance testing
 package main
 

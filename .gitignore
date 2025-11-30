@@ -12,6 +12,7 @@ lunge
 # Output of the go coverage tool
 *.out
 *.prof
+*.cover
 coverage.html
 coverage.out
 

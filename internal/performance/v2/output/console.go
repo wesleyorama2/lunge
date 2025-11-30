@@ -91,7 +91,6 @@ type ConsoleOutput struct {
 
 	// State
 	mu          sync.Mutex
-	running     bool
 	lastStats   *LiveStats
 	linesOutput int // Number of lines in the live display
 }

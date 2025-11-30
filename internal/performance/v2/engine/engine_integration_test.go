@@ -926,7 +926,7 @@ func TestEngineIntegration_ContextCancellation(t *testing.T) {
 	}()
 
 	startTime := time.Now()
-	_, err = engine.Run(ctx)
+	_, _ = engine.Run(ctx)
 	elapsed := time.Since(startTime)
 
 	// Should have stopped early due to cancellation

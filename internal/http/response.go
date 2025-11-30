@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -52,7 +51,7 @@ func (r *Response) GetBody() ([]byte, error) {
 
 	// Read the body
 	defer r.Body.Close()
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

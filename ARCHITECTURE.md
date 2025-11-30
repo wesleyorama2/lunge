@@ -326,88 +326,40 @@ The JSON configuration format will support:
 }
 ```
 
-## Implementation Plan
-
-### Phase 1: Core Functionality
-1. Set up project structure and basic CLI
-2. Implement HTTP client with basic request/response handling
-3. Develop pretty output formatting for terminal
-4. Add support for headers, query params, and request body
-
-### Phase 2: Validation Framework (Prioritized)
-1. Implement comprehensive response validator components
-2. Develop JSON Schema validation
-3. Add JSONPath-based content validation
-4. Implement header and status validation
-5. Add performance validation
-
-### Phase 3: Testing Framework (Prioritized)
-1. Develop test runner and assertion engine
-2. Implement test reporting with detailed output
-3. Add support for test suites with setup/teardown
-4. Develop test dependency management
-
-### Phase 4: Configuration and Suites
-1. Implement JSON configuration file loading
-2. Add environment variable support with variable substitution
-3. Develop suite runner for executing multiple requests
-4. Implement variable extraction and storage
-
-### Phase 5: Polish and Documentation
-1. Refine CLI interface and user experience
-2. Create comprehensive documentation
-3. Add examples and templates
-4. Optimize performance
-
-## Directory Structure
+## Project Structure
 
 ```
 lunge/
 ├── cmd/
-│   └── lunge/
-│       └── main.go
+│   ├── lunge/                    # Main CLI entry point
+│   └── generate-sample-report/   # Report generation utility
+├── config/                       # Public config package (library)
+├── http/                         # Public HTTP client package (library)
+├── perf/                         # Public performance testing package (library)
+│   ├── config/                   # Performance test configuration
+│   ├── executor/                 # Executor types and interfaces
+│   ├── metrics/                  # Metrics collection types
+│   └── rate/                     # Rate limiting
 ├── internal/
-│   ├── cli/
-│   │   ├── parser.go
-│   │   └── flags.go
-│   ├── config/
-│   │   ├── loader.go
-│   │   └── validator.go
-│   ├── http/
-│   │   ├── client.go
-│   │   ├── request.go
-│   │   └── response.go
-│   ├── output/
-│   │   ├── formatter.go
-│   │   └── colors.go
-│   ├── suite/
-│   │   ├── runner.go
-│   │   └── extractor.go
-│   ├── validator/
-│   │   ├── status.go
-│   │   ├── header.go
-│   │   ├── body.go
-│   │   ├── schema.go
-│   │   └── performance.go
-│   └── test/
-│       ├── runner.go
-│       ├── assertion.go
-│       └── reporter.go
+│   ├── cli/                      # CLI command implementations
+│   ├── config/                   # Internal config handling
+│   ├── http/                     # Internal HTTP client implementation
+│   ├── output/                   # Output formatting
+│   └── performance/
+│       └── v2/                   # Performance engine v2
+│           ├── config/           # Parser and schema
+│           ├── engine/           # Test engine
+│           ├── executor/         # Executor implementations
+│           ├── metrics/          # Metrics collection
+│           ├── output/           # Console output
+│           ├── rate/             # Rate limiters
+│           └── report/           # Report generation
 ├── pkg/
-│   ├── jsonpath/
-│   │   └── jsonpath.go
-│   ├── jsonschema/
-│   │   └── validator.go
-│   └── template/
-│       └── template.go
-├── examples/
-│   ├── simple.json
-│   ├── auth-flow.json
-│   ├── validation.json
-│   └── testing.json
-├── go.mod
-├── go.sum
-└── README.md
+│   ├── jsonpath/                 # JSONPath utilities
+│   └── jsonschema/               # JSON Schema validation
+├── doc/                          # Documentation
+├── examples/                     # Example configurations
+└── scripts/                      # Development scripts
 ```
 
 ## External Dependencies (Minimal)

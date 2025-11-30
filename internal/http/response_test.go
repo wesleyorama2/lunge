@@ -2,7 +2,7 @@ package http
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,7 +17,7 @@ func TestResponse_GetBody(t *testing.T) {
 		StatusCode:   200,
 		Status:       "200 OK",
 		Headers:      make(http.Header),
-		Body:         ioutil.NopCloser(strings.NewReader(body)),
+		Body:         io.NopCloser(strings.NewReader(body)),
 		ResponseTime: 100 * time.Millisecond,
 	}
 
@@ -56,7 +56,7 @@ func TestResponse_GetBodyAsString(t *testing.T) {
 		StatusCode:   200,
 		Status:       "200 OK",
 		Headers:      make(http.Header),
-		Body:         ioutil.NopCloser(strings.NewReader(body)),
+		Body:         io.NopCloser(strings.NewReader(body)),
 		ResponseTime: 100 * time.Millisecond,
 	}
 
@@ -79,7 +79,7 @@ func TestResponse_GetBodyAsJSON(t *testing.T) {
 		StatusCode:   200,
 		Status:       "200 OK",
 		Headers:      make(http.Header),
-		Body:         ioutil.NopCloser(strings.NewReader(body)),
+		Body:         io.NopCloser(strings.NewReader(body)),
 		ResponseTime: 100 * time.Millisecond,
 	}
 
@@ -115,7 +115,7 @@ func TestResponse_GetHeader(t *testing.T) {
 		StatusCode:   200,
 		Status:       "200 OK",
 		Headers:      headers,
-		Body:         ioutil.NopCloser(bytes.NewReader([]byte{})),
+		Body:         io.NopCloser(bytes.NewReader([]byte{})),
 		ResponseTime: 100 * time.Millisecond,
 	}
 

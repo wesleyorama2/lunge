@@ -121,9 +121,8 @@ func TestArrivalRateAccuracy(t *testing.T) {
 	numSamples := 50
 	intervals := make([]time.Duration, 0, numSamples)
 
-	lastTime := time.Now()
 	_ = bucket.Wait(ctx) // First iteration (establishes baseline)
-	lastTime = time.Now()
+	lastTime := time.Now()
 
 	for i := 0; i < numSamples; i++ {
 		_ = bucket.Wait(ctx)
@@ -212,9 +211,8 @@ func TestArrivalRateAccuracy_HighLoad(t *testing.T) {
 	numSamples := 100
 	intervals := make([]time.Duration, 0, numSamples)
 
-	lastTime := time.Now()
 	_ = bucket.Wait(ctx)
-	lastTime = time.Now()
+	lastTime := time.Now()
 
 	for i := 0; i < numSamples; i++ {
 		_ = bucket.Wait(ctx)
@@ -252,9 +250,8 @@ func TestArrivalRateAccuracy_RateChange(t *testing.T) {
 
 	// Measure intervals at 50 RPS
 	var intervals50 []time.Duration
-	lastTime := time.Now()
 	_ = bucket.Wait(ctx)
-	lastTime = time.Now()
+	lastTime := time.Now()
 
 	for i := 0; i < 10; i++ {
 		_ = bucket.Wait(ctx)

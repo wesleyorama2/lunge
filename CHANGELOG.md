@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+*No changes yet.*
+
+## [2.0.0] - 2025-11-30
+
+### Added
+
 #### Performance Testing Engine v2
 - **New executor types** inspired by K6/Gatling for professional-grade load testing:
   - `constant-vus` - Maintains a fixed number of virtual users throughout the test

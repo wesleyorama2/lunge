@@ -134,7 +134,8 @@ func executeRequest(cfg *config.Config, requestName string, env config.Environme
 // executeRequestWithContext executes a single request with the given context and output options
 // This function is more testable because it accepts a context, returns errors instead of exiting,
 // and allows disabling output
-func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, client *http.Client, formatter output.FormatProvider, timeout time.Duration, verbose bool, printOutput bool) error {
+func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestName string, env config.Environment, envVars map[string]string, baseClient *http.Client, formatter output.FormatProvider, timeout time.Duration, verbose bool, printOutput bool) error {
+	_ = baseClient // unused - we create a new client with the baseURL
 	// Get request
 	reqConfig, ok := cfg.Requests[requestName]
 	if !ok {
@@ -216,13 +217,13 @@ func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestN
 		defer cancel()
 	}
 
-	// Update client with baseURL
-	client = http.NewClient(
+	// Create a new client with baseURL
+	reqClient := http.NewClient(
 		http.WithTimeout(timeout),
 		http.WithBaseURL(baseURL),
 	)
 
-	resp, err := client.Do(ctx, req)
+	resp, err := reqClient.Do(ctx, req)
 	if err != nil {
 		if printOutput {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -236,7 +237,7 @@ func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestN
 	}
 
 	// Extract variables
-	if reqConfig.Extract != nil && len(reqConfig.Extract) > 0 {
+	if len(reqConfig.Extract) > 0 {
 		// Get response body as string
 		body, err := resp.GetBodyAsString()
 		if err != nil {
@@ -265,7 +266,7 @@ func executeRequestWithContext(ctx context.Context, cfg *config.Config, requestN
 	}
 
 	// Validate response against JSON Schema if specified
-	if reqConfig.Validate != nil && len(reqConfig.Validate) > 0 {
+	if len(reqConfig.Validate) > 0 {
 		// Get response body as string
 		body, err := resp.GetBodyAsString()
 		if err != nil {
